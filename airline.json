@@ -2,8 +2,8 @@
     "name": "Blue Angels - GeoFS",
     "color": "yellow",
     "bgcolor": "darkblue",
-    "aircrafts": {
-        "0": {
+    "aircrafts": [
+        {
             "name": "McDonell Douglas - Boeing F/A-18F Super Hornet",
             "liveries": [
                 {
@@ -36,5 +36,5 @@
                 }
             ]
         }
-    }
+    ]
 }
