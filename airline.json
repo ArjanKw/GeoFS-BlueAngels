@@ -4,28 +4,28 @@
         {
             "name": "Blue Angels #1 - Big-E",
             "texture": [
-                "/models/aircraft/premium/fa18/Blue-Angels-1-Big-E.png"
+                "https://github.com/ArjanKw/GeoFS-BlueAngels/blob/main/Blue-Angels-1-Big-E.png"
             ],
             "credits": "GeoFS Blue Angels"
         },
         {
             "name": "Blue Angels #2 - Natrium",
             "texture": [
-                "/models/aircraft/premium/fa18/Blue-Angels-2-Natrium.png"
+                "https://github.com/ArjanKw/GeoFS-BlueAngels/blob/main/Blue-Angels-2-Natrium.png"
             ],
             "credits": "GeoFS Blue Angels"
         },
         {
             "name": "Blue Angels #3 - HAWXlead",
             "texture": [
-                "/models/aircraft/premium/fa18/Blue-Angels-3-Hawx.png"
+                "https://github.com/ArjanKw/GeoFS-BlueAngels/blob/main/Blue-Angels-3-Hawx.png"
             ],
             "credits": "GeoFS Blue Angels"
         },
         {
-            "name": "Blue Angels #3 - Sonic",
+            "name": "Blue Angels #4 - Sonic",
             "texture": [
-                "/models/aircraft/premium/fa18/Blue-Angels-4-Sonic.png"
+                "https://github.com/ArjanKw/GeoFS-BlueAngels/blob/main/Blue-Angels-4-Sonic.png"
             ],
             "credits": "GeoFS Blue Angels"
         }
