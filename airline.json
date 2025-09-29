@@ -4,28 +4,28 @@
         {
             "name": "Blue Angels #1 - Big-E",
             "texture": [
-                "https://github.com/ArjanKw/GeoFS-BlueAngels/blob/main/Blue-Angels-1-Big-E.png"
+                "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Blue-Angels-1-Big-E.png"
             ],
             "credits": "GeoFS Blue Angels"
         },
         {
             "name": "Blue Angels #2 - Natrium",
             "texture": [
-                "https://github.com/ArjanKw/GeoFS-BlueAngels/blob/main/Blue-Angels-2-Natrium.png"
+                "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Blue-Angels-2-Natrium.png"
             ],
             "credits": "GeoFS Blue Angels"
         },
         {
             "name": "Blue Angels #3 - HAWXlead",
             "texture": [
-                "https://github.com/ArjanKw/GeoFS-BlueAngels/blob/main/Blue-Angels-3-Hawx.png"
+                "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Blue-Angels-3-Hawx.png"
             ],
             "credits": "GeoFS Blue Angels"
         },
         {
             "name": "Blue Angels #4 - Sonic",
             "texture": [
-                "https://github.com/ArjanKw/GeoFS-BlueAngels/blob/main/Blue-Angels-4-Sonic.png"
+                "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Blue-Angels-4-Sonic.png"
             ],
             "credits": "GeoFS Blue Angels"
         }
