@@ -1,0 +1,33 @@
+{
+    "name": "McDonell Douglas - Boeing F/A-18F Super Hornet",
+    "liveries": [
+        {
+            "name": "Blue Angels #1 - Big-E",
+            "texture": [
+                "/models/aircraft/premium/fa18/Blue-Angels-1-Big-E.png"
+            ],
+            "credits": "GeoFS Blue Angels"
+        },
+        {
+            "name": "Blue Angels #2 - Natrium",
+            "texture": [
+                "/models/aircraft/premium/fa18/Blue-Angels-2-Natrium.png"
+            ],
+            "credits": "GeoFS Blue Angels"
+        },
+        {
+            "name": "Blue Angels #3 - HAWXlead",
+            "texture": [
+                "/models/aircraft/premium/fa18/Blue-Angels-3-Hawx.png"
+            ],
+            "credits": "GeoFS Blue Angels"
+        },
+        {
+            "name": "Blue Angels #3 - Sonic",
+            "texture": [
+                "/models/aircraft/premium/fa18/Blue-Angels-4-Sonic.png"
+            ],
+            "credits": "GeoFS Blue Angels"
+        }
+    ]
+}
