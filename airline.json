@@ -3,8 +3,8 @@
     "color": "yellow",
     "description": "Allows the GeoFS Blue Angels team to use their Blue Angels livery, and see it in multiplayer, using the Livery Selector.",
     "bgcolor": "darkblue",
-    "aircrafts": [
-        {
+    "aircrafts": {
+        "27": {
             "name": "McDonell Douglas - Boeing F/A-18F Super Hornet",
             "liveries": [
                 {
@@ -35,7 +35,10 @@
                     ],
                     "credits": "GeoFS Blue Angels"
                 }
+            ],
+            "labels": [
+                "Texture"
             ]
         }
-    ]
+    }
 }
