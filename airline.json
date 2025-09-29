@@ -38,7 +38,19 @@
             ],
             "labels": [
                 "Texture"
-            ]
+            ],
+            "index": [
+                1
+            ],
+            "parts": [
+                0
+            ],
+            "mp": [
+                {
+                    "modelIndex": 0,
+                    "textureIndex": 0
+                }
+            ],
         }
     }
 }
