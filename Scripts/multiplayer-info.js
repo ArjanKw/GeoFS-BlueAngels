@@ -17,6 +17,8 @@
     let showAircraftTypeEvery = 10; // Every X times that the distance is updated, show the aircraft type.
     let displayAircraftTypeDuration = 2; // The number of updates that the aircraft type is shown.
     let minimumNmDistance = 0.5; // Below this distance in nm, the distance is displayed in feet.
+    let displayLabel = true; // Whether to display the label.
+    let toggleDisplayKey = "l"; // The key to press to see/hide labels.
     let counter = 0;
     let feetInNm = 6076.11549;
 
@@ -25,6 +27,10 @@
 
         Object.values(multiplayer.visibleUsers).forEach(function (e) {
             if (e.label && e.callsign) {
+                if (!displayLabel) {
+                    e.label.text = "";
+                    return;
+                }
                 let distance = e.distance;
                 let speed = e.lastUpdate?.st?.as;
                 let unit = "feet";
@@ -51,6 +57,12 @@
             }
         });
     }
+
+    window.addEventListener("keyup", function (e) {
+        if (e.key == toggleDisplayKey) {
+            displayLabel = !displayLabel;
+        }
+    });
 
     setInterval(function () {
         updateMultiplayer();
