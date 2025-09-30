@@ -5,6 +5,7 @@ This allows the GeoFS Blue Angels team to use their Blue Angels livery, and see 
 In the Livery Selector, add this Virtual Airline URL: https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/airline.json
 
 Now you can select the Blue Angels livery of your choice:
+
 ![Virtual airline](virtual-airline.png)
 
 # Scripts
