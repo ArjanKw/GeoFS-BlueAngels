@@ -1,4 +1,30 @@
-Github page for the GeoFS Blue Angels.
+# GeoFS Blue Angels
+Welcome to the main GeoFS Blue Angels hub. This space provides everything we need to operate.
+
+Our pilots:
+1) Big-E
+2) Natrium
+3) Vacant
+4) Sonic
+5) Vacant
+6) Vacant
+
+Our trainees:
+1) Rogue Viper
+2) LaCroix
+3) Solotürk
+4) Toaster
+5) MASSIV
+
+## Joining us
+We welcome pilots who are able to fly in close formation. 
+Add `bigenchilada` on Discord to apply. You'll be first added as a trainee, so you can train with us.
+After successfully completing the pilot checkride, in which you demonstrate that your skills are up to our standars, you will transition to our display team.
+
+# Manual
+Our manual contains our way of working and procedures. It also details how to set up Geo-FS, so you can use our liveries and scripts.
+
+[Read it here](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Manual/Geo-FS%20Blue%20Angels%20Manual.pdf)
 
 # Blue Angels livery
 This allows the GeoFS Blue Angels team to use their Blue Angels livery, and see it in multiplayer, using the Livery Selector.
@@ -6,7 +32,7 @@ In the Livery Selector, add this Virtual Airline URL: https://raw.githubusercont
 
 Now you can select the Blue Angels livery of your choice:
 
-![Virtual airline](virtual-airline.png)
+![Virtual airline](Images/scripts/virtual-airline.png)
 
 ## Create your own livery.
 Install Inkscape and open `Blue-Angels-Texture-Inkscape-Template.svg`. With this file you can change the callsign next to the canopy, and choose a number on the tail. Export it to png.
@@ -18,18 +44,22 @@ If you want to have the livery available in the livery selector:
 
 If you don't have rights for this, create an Issue or Pull Request with the requested changes.
 
-# Manual
-Our manual contains our way of working and procedures. It also details how to set up Geo-FS.
-
 # Scripts
 These scripts are used by the GeoFS Blue Angels to improve their flying. Install the browser extension Tampermonkey to manage these scripts easily.
 
 ## Multiplayer info
 With this script you see the speed, distance and aircraft type for each aircraft, so you can intercept them easily. Press the 'L' key to see/hide labels.
+As GeoFS isn't equiped with a radar, we use this as an alternative.
 
-![See multiplayer info](multiplayer-info.png)
+![See multiplayer info](Images/scripts/multiplayer-info.png)
 
 Installation: [add this script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/multiplayer-info.js) to Tampermonkey, or execute it in Developer Console.
+
+## Chat fix
+There is a bug in GeoFS that prevents the key 'T' to open the chat input. Fixing this helps to quickly communicate without having to rely on your mouse.
+This script is created by Zeta, all credits go to him. We host it as we couldn't find the place where it was stored originally.
+
+Installation: [add this script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/geo-fs-chat-fix.js) to Tampermonkey, or execute it in Developer Console.
 
 ## Flight info
 With this script your speed (True airspeed, Ground speed and Mach number), altitude (Flight Level, Altitude in feet and Climbrate), Angle of Attack, Gear and Flap position are displayed in the bottom. It will also warn you for a gear up landing, a stall or flying with engine off. If you have the Engine Power Boost script installed, it will also display your engine mode.
@@ -93,7 +123,12 @@ Install the Flight Info Display script (see above) to see which mode you're in:
 ![Warns for stall](Images/scripts/engine-mode.png)
 
 ## Flight path vector
-With this script you see where you are flying to, with a flight path vector. The author of this script is [Tylerbmusic](https://github.com/tylerbmusic/GeoFS-Flight-Path-Vector/) and GGamerGGuy. We changed it, so you can press the letter 'Q' to show/hide the flight path vector.
+With this script you see where you are flying to, with a flight path vector (FPV). The author of this script is [Tylerbmusic](https://github.com/tylerbmusic/GeoFS-Flight-Path-Vector/) and GGamerGGuy.
+The FPV is very important to see exactly where you're flying to, and helps to make the landing more accurate:
+
+
+
+We changed it slightly, so you can press the letter 'Q' to show/hide the flight path vector.
 
 Installation: [add this script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/geo-fs-flight-path-vector.js) to Tampermonkey, or execute it in Developer Console.
 
