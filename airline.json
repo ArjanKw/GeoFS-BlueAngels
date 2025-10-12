@@ -34,6 +34,13 @@
                         "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Blue-Angels-T-RogueViper.png"
                     ],
                     "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels Specials - Black Angel",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Blue-Angels-Special-Black-2.png"
+                    ],
+                    "credits": "GeoFS Blue Angels"
                 }
             ],
             "labels": [
