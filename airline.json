@@ -167,9 +167,37 @@
             "name": "McDonell Douglas - Boeing F/A-18F Super Hornet",
             "liveries": [
                 {
+                    "name": "Blue Angels #1",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Blue-Angels-1.png"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels #1 - Natrium",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Blue-Angels-1-Natrium.png"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
                     "name": "Blue Angels #1 - Big-E",
                     "texture": [
                         "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Blue-Angels-1-Big-E.png"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels #2",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Blue-Angels-2.png"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels #2 - LJ-Walch",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Blue-Angels-2-LJ-Walch.png"
                     ],
                     "credits": "GeoFS Blue Angels"
                 },
@@ -181,6 +209,41 @@
                     "credits": "GeoFS Blue Angels"
                 },
                 {
+                    "name": "Blue Angels #2",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Blue-Angels-2.png"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels #3",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Blue-Angels-3.png"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels #3 - Zeta",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Blue-Angels-3-Zeta.png"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels #3 - Toaster",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Blue-Angels-3-Toaster.png"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels #4",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Blue-Angels-4.png"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
                     "name": "Blue Angels #4 - Sonic",
                     "texture": [
                         "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Blue-Angels-4-Sonic.png"
@@ -188,9 +251,30 @@
                     "credits": "GeoFS Blue Angels"
                 },
                 {
-                    "name": "Blue Angels Trainee #1 - Rogue✦Viper",
+                    "name": "Blue Angels #5",
                     "texture": [
-                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Blue-Angels-T-RogueViper.png"
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Blue-Angels-5.png"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels #6",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Blue-Angels-6.png"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels Trainee",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Blue-Angels-T.png"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels Trainee - Merpati",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Blue-Angels-T-Merpati.png"
                     ],
                     "credits": "GeoFS Blue Angels"
                 },
