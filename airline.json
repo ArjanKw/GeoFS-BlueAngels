@@ -308,13 +308,10 @@
                 {
                     "name": "Blue Angels #1",
                     "texture": [
-                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/t38-ba-1.png"
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/t38-ba-1.jpg"
                     ],
                     "credits": "GeoFS Blue Angels"
                 }
-            ],
-            "labels": [
-                "Texture"
             ],
             "index": [
                 1
@@ -324,8 +321,8 @@
             ],
             "mp": [
                 {
-                    "modelIndex": 2,
-                    "textureIndex": 3
+                    "modelIndex": 0,
+                    "textureIndex": 1
                 }
             ]
         },
