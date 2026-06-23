@@ -258,6 +258,13 @@
                     "credits": "GeoFS Blue Angels"
                 },
                 {
+                    "name": "Blue Angels #5 - Merpati",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Blue-Angels-5-Merpati.png"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
                     "name": "Blue Angels #6",
                     "texture": [
                         "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Blue-Angels-6.png"
@@ -272,16 +279,36 @@
                     "credits": "GeoFS Blue Angels"
                 },
                 {
-                    "name": "Blue Angels Trainee - Merpati",
-                    "texture": [
-                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Blue-Angels-T-Merpati.png"
-                    ],
-                    "credits": "GeoFS Blue Angels"
-                },
-                {
                     "name": "Blue Angels Specials - Black Angel",
                     "texture": [
                         "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Blue-Angels-Special-Black-2.png"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                }
+            ],
+            "labels": [
+                "Texture"
+            ],
+            "index": [
+                1
+            ],
+            "parts": [
+                0
+            ],
+            "mp": [
+                {
+                    "modelIndex": 2,
+                    "textureIndex": 3
+                }
+            ]
+        },
+        "32": {
+            "name": "Northrop T-38 Talon",
+            "liveries": [
+                {
+                    "name": "Blue Angels #1",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/t38-ba-1.png"
                     ],
                     "credits": "GeoFS Blue Angels"
                 }
