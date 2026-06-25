@@ -308,14 +308,210 @@
                 {
                     "name": "Blue Angels #1",
                     "texture": [
-                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/t38-ba-1.jpg"
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/ba/t38-ba-1.jpg"
                     ],
                     "credits": "GeoFS Blue Angels"
                 },
                 {
                     "name": "Blue Angels #1 - Natrium",
                     "texture": [
-                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/t38-ba-1-natrium.jpg"
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/ba/t38-ba-1-natrium.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels #2",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/ba/t38-ba-2.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels #3",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/ba/t38-ba-3.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels #4",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/ba/t38-ba-4.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels #5",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/ba/t38-ba-5.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels #6",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/ba/t38-ba-6.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels T",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/ba/t38-ba-t.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels - GeoFS Anniversary",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/1-anniversary-v1/t38-ba.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels - GeoFS Anniversary - Geo-FS",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/1-anniversary-v1/t38-ba-geo-fs.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels - GeoFS Anniversary - Natrium",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/1-anniversary-v1/t38-ba-geo-natrium.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels - GeoFS Anniversary - LJ-Walch",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/1-anniversary-v1/t38-ba-geo-lj-walch.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels - GeoFS Anniversary - Zeta",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/1-anniversary-v1/t38-ba-geo-zeta.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels - GeoFS Anniversary - Sonic",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/1-anniversary-v1/t38-ba-geo-.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels - GeoFS Anniversary - Merpati",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/1-anniversary-v1/t38-ba-geo-merpati.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels - GeoFS Anniversary - BY578",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/1-anniversary-v1/t38-ba-geo-by578.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels - GeoFS Anniversary - HeyMan1",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/1-anniversary-v1/t38-ba-geo-.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels - GeoFS Anniversary - Mighty",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/1-anniversary-v1/t38-ba-geo-mighty.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels - GeoFS Anniversary - Pepper",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/1-anniversary-v1/t38-ba-geo-pepper.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels - GeoFS Anniversary - StrikerVT",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/1-anniversary-v1/t38-ba-geo-strikervt.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels - GeoFS Anniversary Special",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/1-anniversary-v2/t38-ba.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels - GeoFS Special - Black",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/specials/t38-black.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels - GeoFS Special - Black Red",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/specials/t38-black-red.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels - GeoFS Special - Blue Red",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/specials/t38-blue-red.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels - GeoFS Special - Blue Orange",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/specials/t38-blue-orange.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels - GeoFS Special - Red",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/specials/t38-red.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels - GeoFS Special - Bright Red",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/specials/t38-bright-red.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels - GeoFS Special - Camo",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/specials/t38-camo.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels - GeoFS Special - Gold",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/specials/t38-gold.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels - GeoFS Special - Gold Celebration",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/specials/t38-gold-celebration.jpg"
                     ],
                     "credits": "GeoFS Blue Angels"
                 }
