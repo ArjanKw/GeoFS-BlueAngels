@@ -313,13 +313,6 @@
                     "credits": "GeoFS Blue Angels"
                 },
                 {
-                    "name": "Blue Angels #1 - Natrium",
-                    "texture": [
-                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/ba/t38-ba-1-natrium.jpg"
-                    ],
-                    "credits": "GeoFS Blue Angels"
-                },
-                {
                     "name": "Blue Angels #2",
                     "texture": [
                         "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/T38/ba/t38-ba-2.jpg"
