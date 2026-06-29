@@ -41,18 +41,19 @@ Developer documentation for the scripts [can be found here](Scripts/README.md).
 ## F-18 / F-15 Add-on
 This script improves the F-18 in many ways. It add's a totally reworked F-18 HUD with a FPV and AoA bracket, adds MFD's with a radar, HSI, Communication and weapon displays, extra views in and outside the cockpit, the option to change your seat height and more. In the HUD page you can now switch HUD mode between `F-18` and `DEFAULT`.
 
-## Stable (F-18)
-Installation (v1.7.0 stable): [geo-fs-f18-mod.js](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/geo-fs-f18-mod.js).
+![F-18 add-on](Images/scripts/f-18-addon.png)
 
-## F-18 v2.0.0 beta
+## F-18 v2.0.0
 - [Add this readable script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f18-addon.user.full.js) to Tampermonkey
 - Or [add this minified version](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f18-addon.user.min.js).
 
-## F-15 v2.0.0 beta
+## F-15 v2.0.0
 - [Add this script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f15-addon.user.full.js) to Tampermonkey
 - Or [add this minified version](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f15-addon.user.min.js).
 
-![F-18 add-on](Images/scripts/f-18-addon.png)
+## Older version (F-18)
+Having problems with our v2.0.0? Add v1.7.0 stable.
+Installation (v1.7.0 stable): [geo-fs-f18-mod.js](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/geo-fs-f18-mod.js).
 
 ## Mission Planner
 Install [the mission planner](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/) to create a mission and share it with your aircraft.
