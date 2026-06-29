@@ -56,6 +56,9 @@ Installation (v1.7.0 stable): [geo-fs-f18-mod.js](https://raw.githubusercontent.
 
 ## Mission Planner
 Install [the mission planner](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/) to create a mission and share it with your aircraft.
+Create a mission by opening the Navigation Panel and clicking on the "Mission Planner" button. You can see the mission in the Navigation Panel. With the F-18 you can also import the mission into the MFDs, by pressing the "Load Datacartridge" button when your engine is off.
+
+![Mission planner](Images/scripts/mission-planner.png)
 
 ## Flight recorder
 This addon allows you to record your flight and play it back while recording a new flight. This way you can record formation flights and practise formation flying.
@@ -65,6 +68,18 @@ Installation: [add this script](https://raw.githubusercontent.com/ArjanKw/GeoFS-
 Use it by clicking the REC button in the bottom left, opening this panel:
 
 ![Flight Recorder](Images/scripts/FlightRecorder.png)
+
+## Multiplayer gear bug fix
+When you get in visual range of other aircraft in multiplayer, by default their gear will be out. This is highly annoying as the only fix is asking the person to fully lower, then raise their gear.
+With this script GeoFS is tricked into thinking the gear is moved in the other state. The next multiplayer update will reset the gear value to the original value, thus simulating lowering then raising the gear.
+This will force GeoFS to display the state of the gear correctly.
+
+Installation: [add this script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/geo-fs-mp-gear-fix.js) to Tampermonkey, or execute it in Developer Console.
+
+## Taxi and parking fix
+A small but annoying bug in GeoFS is that some aircraft glide left or right when you're parked when the surface isn't fully level, or while braking. This script prevents that.
+
+Installation: [add this script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/geo-fs-park-stabilizer.js) to Tampermonkey, or execute it in Developer Console.
 
 ## Multiplayer info
 With this script you see the speed, distance and aircraft type for each aircraft, so you can intercept them easily. Press the 'L' key to see/hide labels. It now also shows you the closing speed, handy for an intercept!
