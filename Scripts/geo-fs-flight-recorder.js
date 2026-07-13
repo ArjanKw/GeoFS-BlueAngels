@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         GeoFS Flight Recorder
 // @namespace    https://github.com/ArjanKw/GeoFS-BlueAngels/
-// @version      1.2.0
-// @description  Record and replay GeoFS flights with lightweight gear state playback.
+// @version      2.0.0
+// @description  Record and replay GeoFS flights, and share them with others.
 // @match        https://www.geo-fs.com/*
 // @grant        none
 // ==/UserScript==
@@ -11,7 +11,7 @@
   'use strict';
 
   /* ---------- Config ---------- */
-  const VERSION = '1.2.0';
+  const VERSION = '2.0.0';
   const LS_CALLSIGN_KEY = 'FlightRecorder100Callsign';
   const IDB_NAME = 'FlightRecorder100DB';
   const IDB_VERSION = 1;
@@ -90,7 +90,7 @@
 
   let defaultSampleMs = 33; // 30 Hz
   let easingOn = false;
-  let ultraStrength = 50; // 0..100
+  let ultraStrength = 100; // 0..100
   let recordCallsign = '';
   let showCallsign = true;
   let playbackSliderDragging = false;
@@ -189,7 +189,8 @@
       htr: [],
       xy: [],
       gearEvents: [],
-      liveryEvents: []
+      liveryEvents: [],
+      messageEvents: []
     };
   }
 
@@ -210,7 +211,8 @@
       paused: true,
       idx: 0,
       startT: now(),
-      lastT: now()
+      lastT: now(),
+      lastMsgIdx: -1
     };
     tr._state = { mode: 'ghost', gearUp: null };
     tr._pilotFollow = false;
@@ -270,7 +272,8 @@
         htr: t.htr,
         xy: t.xy,
         gearEvents: t.gearEvents,
-        liveryEvents: t.liveryEvents
+        liveryEvents: t.liveryEvents,
+        messageEvents: t.messageEvents || []
       }))
     };
   }
@@ -335,6 +338,7 @@
 
     const gearEvents = Array.isArray(tr?.gearEvents) ? tr.gearEvents : [];
     const liveryEvents = Array.isArray(tr?.liveryEvents) ? tr.liveryEvents : [];
+    const messageEvents = Array.isArray(tr?.messageEvents) ? tr.messageEvents : [];
 
     tr.orderId = orderId;
     tr.id = String(tr.id || `T${String(orderId).padStart(4, '0')}`);
@@ -351,6 +355,7 @@
     tr.xy = xy;
     tr.gearEvents = gearEvents;
     tr.liveryEvents = liveryEvents;
+    tr.messageEvents = messageEvents;
     return tr;
   }
 
@@ -953,6 +958,9 @@
     for (const tr of targetTracks) {
       if (!tr._play.playing) startPlaybackAt(tr, t0);
       else if (tr._play.paused) pausePlayback(tr, false);
+    }
+    if (targetTracks[0]) {
+      renderMessageTimeline(targetTracks[0]);
     }
     updateUi();
     return {
@@ -1718,7 +1726,8 @@
       htr: currentRec.htr,
       xy: currentRec.xy,
       gearEvents: currentRec.gearEvents,
-      liveryEvents: currentRec.liveryEvents
+      liveryEvents: currentRec.liveryEvents,
+      messageEvents: currentRec.messageEvents || []
     };
     initTrackRuntime(finalized);
     tracks.push(finalized);
@@ -2236,9 +2245,12 @@
     track._play.playing = true;
     track._play.paused = false;
     track._play.idx = 0;
+    track._play.lastMsgIdx = -1;
     track._play.startT = t0;
     track._play.lastT = t0;
     track._precision = null;
+
+    renderMessageTimeline(track);
     ensureTrackState(track).gearUp = null;
     track._lastGearUp = null;
     if (track._livery) {
@@ -2305,6 +2317,8 @@
     track._play.playing = false;
     track._play.paused = true;
     track._play.idx = 0;
+    track._play.lastMsgIdx = -1;
+
     if (track._ghost) {
       try { track._ghost.destroy(); } catch { }
     }
@@ -2395,6 +2409,31 @@
       if (changed) {
         applyGearState(track, upNow);
         hideConfiguredNodes(track);
+      }
+    }
+
+    if (track.messageEvents && track.messageEvents.length > 0) {
+      const prevIdx = track._play.lastMsgIdx ?? -1;
+      const currIdx = Math.floor(p.idx);
+
+      // Execute when playback index progresses or scrubs
+      if (currIdx !== prevIdx) {
+        const isForward = currIdx > prevIdx;
+        const callsign = track.callsign ? `${track.callsign}: ` : '';
+
+        for (const msgEvent of track.messageEvents) {
+          // Verify frame intersection threshold marks
+          const hit = isForward 
+            ? (msgEvent.t > prevIdx && msgEvent.t <= currIdx)
+            : (msgEvent.t >= currIdx && msgEvent.t < prevIdx);
+
+          if (hit) {
+            // Provide exact instance linkages down to the HUD layer
+            showFlightMessage(`${callsign}${msgEvent.text}`, track, msgEvent);
+          }
+        }
+        // Save the index marker state directly
+        track._play.lastMsgIdx = currIdx;
       }
     }
 
@@ -2573,7 +2612,8 @@
             htr: t.htr,
             xy: t.xy,
             gearEvents: t.gearEvents,
-            liveryEvents: t.liveryEvents
+            liveryEvents: t.liveryEvents,
+            messageEvents: t.messageEvents || []
           }, nextTrackNumber++);
           initTrackRuntime(tr);
           added.push(tr);
@@ -2775,6 +2815,169 @@
   }
 
   /* ---------- UI ---------- */
+
+  let flightMsgTimeout = null;
+
+  function showFlightMessage(text, track, msgEvent) {
+    if (!text) return;
+    
+    let msgBox = document.getElementById('fr-flight-message-hud');
+    if (!msgBox) {
+      msgBox = document.createElement('div');
+      msgBox.id = 'fr-flight-message-hud';
+      msgBox.style.cssText = `
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.85);
+        color: #fff;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 18px;
+        font-weight: bold;
+        z-index: 100000;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        border: 2px solid #4CAF50;
+        text-align: center;
+        max-width: 80%;
+        display: none;
+      `;
+      document.body.appendChild(msgBox);
+    }
+
+    // Ensure pointer events are active so the close button registers clicks
+    msgBox.style.pointerEvents = 'auto';
+
+    // Render the message string and structural clear button
+    msgBox.innerHTML = text + ' <span class="flight-msg-close" style="cursor: pointer; margin-left: 12px; color: #ff4444; font-size: 20px;" title="Delete">&times;</span>';
+    msgBox.style.display = 'block';
+
+    speakMessage(text);
+
+    const closeBtn = msgBox.querySelector('.flight-msg-close');
+    if (closeBtn && track && msgEvent) {
+      closeBtn.onclick = (ev) => {
+        ev.stopPropagation();
+        
+        // 1. Remove the specific message item from the tracking array
+        track.messageEvents = track.messageEvents.filter(m => m !== msgEvent);
+        
+        // 2. Clear out the HUD interface directly
+        msgBox.style.display = 'none';
+        
+        // 3. Force-refresh timeline layer to instantly wipe out the diamond element
+        renderMessageTimeline(track);
+
+        // 4. Mirror mutation to Persistent Storage
+        saveToIndexedDB();
+      };
+    }
+
+    // Erase existing cleanup timers if sequence is closely stacked
+    if (flightMsgTimeout) clearTimeout(flightMsgTimeout);
+
+    // Auto-expire display state after exactly 3 seconds
+    flightMsgTimeout = setTimeout(() => {
+      msgBox.style.display = 'none';
+      flightMsgTimeout = null;
+    }, 3000);
+  }
+
+  function renderMessageTimeline(track) {
+    const container = document.getElementById('message-timeline-container');
+    const playbackInput = document.getElementById('playbackPos');
+    
+    if (!container) return;
+    if (!track) return;
+
+    // Zorg voor de juiste CSS-context
+    container.style.position = 'relative';
+    container.style.overflow = 'visible'; 
+
+    const totalSamples = track.lla ? track.lla.length : 1;
+    const messages = track.messageEvents || [];
+    const callsign = track.callsign || "unknown";
+
+    // BESCHERMING: Als er 0 berichten binnenkomen, maar de balk heeft al diamantjes 
+    // van deze vlucht, negeer dan de lege update zodat ze niet verdwijnen!
+    if (messages.length === 0) {
+        const hasExistingDiamonds = container.querySelector('.timeline-diamond') !== null;
+        const isSameFlight = container.dataset.lastCallsign === callsign;
+
+        if (hasExistingDiamonds && isSameFlight) {
+            // De loop probeert de diamantjes te wissen, maar we weigeren dit.
+            return; 
+        }
+        
+        // Alleen als we écht naar een andere vlucht switchen, maken we de balk leeg
+        container.innerHTML = '';
+        container.dataset.lastCallsign = callsign;
+        return;
+    }
+
+    // Sla de huidige callsign op in de HTML als referentie
+    container.dataset.lastCallsign = callsign;
+
+    // Nu pas maken we de balk leeg, omdat we legitieme nieuwe diamantjes gaan tekenen
+    container.innerHTML = ''; 
+
+    console.log(`[Timeline] Succesvol gecached! Diamantjes worden definitief getekend voor ${callsign}.`);
+
+    messages.forEach((msg, index) => {
+        let percentage = (msg.t / totalSamples) * 100;
+        if (percentage < 0) percentage = 0;
+        if (percentage > 100) percentage = 100;
+
+        const diamond = document.createElement('span');
+        diamond.className = 'timeline-diamond';
+        
+        diamond.style.cssText = `
+            position: absolute !important;
+            left: ${percentage}% !important;
+            top: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            color: #ffcc00 !important; 
+            cursor: pointer !important;
+            font-size: 18px !important; 
+            z-index: 99999 !important; 
+            line-height: 1 !important;
+            display: inline-block !important;
+            text-shadow: 0px 0px 3px rgba(0,0,0,0.9);
+        `;
+        
+        diamond.innerHTML = '◆'; 
+        diamond.title = `Klik om te springen naar: "${msg.text}"`; 
+
+        diamond.onclick = (ev) => {
+            ev.stopPropagation(); 
+            if (playbackInput) {
+                playbackInput.value = msg.t;
+                playbackInput.dispatchEvent(new Event('input'));
+                playbackInput.dispatchEvent(new Event('change'));
+            }
+            if (typeof seekTrackToIndex === 'function') {
+                seekTrackToIndex(track, msg.t);
+            }
+        };
+
+        container.appendChild(diamond);
+    });
+}
+
+  // Speaks one chat message using the browser speech synthesis API.
+  function speakMessage(message) {
+    const synth = window.speechSynthesis;
+    if (!synth || typeof window.SpeechSynthesisUtterance !== 'function') return false;
+
+    message = message.substring(message.indexOf(":") + 1).trim(); // Remove callsign prefix if present
+
+    const utterance = new window.SpeechSynthesisUtterance(message);
+    utterance.lang = 'en-US';
+    utterance.rate = 1.3;
+    synth.speak(utterance);
+  }
+
   function ensureEmbeddedPanel() {
     const host = document.querySelector('.geofs-ui-left');
     if (!host) {
@@ -2843,8 +3046,10 @@
             <button id="playSelBtn" title="Play selected" style="width:62px; height:62px; border-radius:50%; border:1px solid #2c4f02; background:#4B8603; color:#fff; font-size:26px; font-weight:700; cursor:pointer;">▶</button>
             <button id="pauseSelBtn" title="Pause selected" style="width:62px; height:62px; border-radius:50%; border:1px solid #002441; background:#014275; color:#fff; font-size:24px; font-weight:700; cursor:pointer;">❚❚</button>
             <button id="stopSelBtn" title="Stop selected" style="width:62px; height:62px; border-radius:50%; border:1px solid #991b1b; background:#dc2626; color:#fff; font-size:22px; font-weight:700; cursor:pointer;">■</button>
+            <button id="addMsgBtn" style="display:none; font-size:14px; padding:6px 12px; border:none; border-radius:4px; cursor:pointer; background:#2196F3; color:#fff; margin-left:6px;" title="Add annotation">💬</button>
           </div>
           <div style="text-align:center; margin-top:10px; padding-bottom:20px;">
+            <div id="message-timeline-container"></div>
             <input id="playbackPos" type="range" min="0" max="1000" step="1" value="0" style="width:min(760px, 95%);">
             <div id="playbackPosInfo" style="color:#666; font-size:12px; margin-top:3px;">Playback position: 0%</div>
           </div>
@@ -2965,6 +3170,7 @@
     gui.playSelBtn = guiWin.document.getElementById('playSelBtn');
     gui.pauseSelBtn = guiWin.document.getElementById('pauseSelBtn');
     gui.stopSelBtn = guiWin.document.getElementById('stopSelBtn');
+    gui.addMsgBtn = guiWin.document.getElementById('addMsgBtn');
     gui.playbackPos = guiWin.document.getElementById('playbackPos');
     gui.playbackPosInfo = guiWin.document.getElementById('playbackPosInfo');
     gui.tracksDiv = guiWin.document.getElementById('tracks');
@@ -2979,6 +3185,35 @@
       else startRecordingWithSelectedPlaybacks();
       updateUi();
     };
+
+    gui.addMsgBtn.addEventListener('click', () => {
+    if (!activePilotTrackId) return;
+    
+    const tr = tracks.find(t => t.id === activePilotTrackId);
+    if (!tr) return;
+
+    // Toon prompt (alert met invoer) aan de gebruiker
+    const text = prompt("Add a note or message at this time:");
+    if (!text || !text.trim()) return;
+
+    // Bepaal het huidige tijdframe (index)
+    const currentIdx = Math.floor(tr._play?.idx || 0);
+
+    // Voeg toe aan de data
+    if (!Array.isArray(tr.messageEvents)) tr.messageEvents = [];
+    tr.messageEvents.push({
+      t: currentIdx,
+      text: text.trim()
+    });
+
+    // Sorteer events chronologisch en sla op in IndexedDB
+    tr.messageEvents.sort((a, b) => a.t - b.t);
+    void saveToIndexedDB();
+    
+    // Toon direct ter bevestiging 3 sec in beeldscherm
+    showFlightMessage(`[Saved]: ${text.trim()}`);
+  });
+
     gui.rateSel.value = String(defaultSampleMs);
     if (gui.callsignIn) gui.callsignIn.value = recordCallsign;
     gui.rateSel.onchange = (e) => {
@@ -3076,6 +3311,51 @@
       const showPilotBtn = !!t._play?.playing;
 
       return `
+        <style>
+          /* Container vlak boven de slider */
+          #message-timeline-container {
+            position: relative;
+            width: 100%;
+            height: 14px;
+            margin-bottom: -2px; /* Zorgt dat het strak op de slider aansluit */
+            background: rgba(0, 0, 0, 0.15);
+            border-radius: 4px;
+            width: min(760px, 95%);
+            margin: 2px auto;
+          }
+
+          /* Stijl voor de gele diamantjes op de tijdlijn */
+          .timeline-diamond {
+            position: absolute;
+            top: 50%;
+            transform: translate(-50%, -50%); /* Centreert het diamantje exact op de tijd-positie */
+            color: #ffeb3b; /* Felgeel */
+            font-size: 14px;
+            cursor: pointer;
+            user-select: none;
+            transition: transform 0.1s, color 0.1s;
+          }
+
+          .timeline-diamond:hover {
+            color: #ffffff;
+            transform: translate(-50%, -50%) scale(1.3);
+          }
+
+          /* Stijl voor het rode kruisje in de Message Box */
+          .flight-msg-close {
+            color: #ff4d4d;
+            font-weight: bold;
+            float: right;
+            margin-left: 15px;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+          }
+
+          .flight-msg-close:hover {
+            color: #ff0000;
+          }
+        </style>
         <div style="border:1px solid #ccc; background:rgba(255, 255, 255, 0.6); padding:8px; margin-bottom:8px; border-radius:6px;">
           <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin: 0 13px 8px 9px">
             <label style="font-size:15px; font-weight:600; display:flex; align-items:center; gap:8px; margin:0;">
@@ -3215,6 +3495,12 @@
     const recActive = recordState === 'RECORDING';
     gui.recBtn.textContent = recActive ? 'STOP RECORDING' : 'START RECORDING';
     gui.recBtn.style.background = recActive ? '#024475' : '#c92a2a';
+
+    const addMsgBtn = document.getElementById('addMsgBtn');
+    if (addMsgBtn) {
+      // Alleen zichtbaar als er een track in "pilot" modus (Fly this track) is
+      addMsgBtn.style.display = activePilotTrackId ? 'inline-block' : 'none';
+    }
 
     const canRec = recordState === 'IDLE';
 
