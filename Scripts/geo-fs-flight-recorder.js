@@ -129,10 +129,6 @@
   };
   const angleDeltaDeg = (a, b) => ((b - a + 540) % 360) - 180;
   const escapeHtml = (s) => String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const finiteOr = (v, fallback = 0) => {
-    const n = Number(v);
-    return Number.isFinite(n) ? n : fallback;
-  };
   const sanitizeCallsign = (value) => {
     return String(value || '')
       .replace(/\s+/g, ' ')
@@ -263,8 +259,8 @@
         orderId: t.orderId,
         id: t.id,
         name: t.name,
-        callsign: sanitizeCallsign(t.callsign || ''),
-        description: t.description || '',
+        callsign: sanitizeCallsign(t.callsign),
+        description: t.description,
         createdAt: t.createdAt,
         aircraftId: t.aircraftId,
         modelUrl: t.modelUrl,
@@ -273,14 +269,14 @@
         lla: t.lla,
         htr: t.htr,
         xy: t.xy,
-        gearEvents: t.gearEvents || [],
-        liveryEvents: t.liveryEvents || []
+        gearEvents: t.gearEvents,
+        liveryEvents: t.liveryEvents
       }))
     };
   }
 
   function updatePlayState() {
-    playState = tracks.some((t) => t._play?.playing) ? 'PLAYING' : 'IDLE';
+    playState = tracks.some((t) => t._play.playing) ? 'PLAYING' : 'IDLE';
   }
 
   function formatTrackDate(ts) {
@@ -295,11 +291,66 @@
   function normalizeTrackMeta(tr, fallbackOrder) {
     const parsed = Number.parseInt(String(tr?.orderId ?? tr?.id ?? ''), 10);
     const orderId = Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackOrder;
+    const sampleMsRaw = Number(tr?.sampleMs);
+    const sampleMs = Number.isFinite(sampleMsRaw) && sampleMsRaw > 0 ? Math.round(sampleMsRaw) : 16;
+    const llaSource = Array.isArray(tr?.lla) ? tr.lla : [];
+    const htrSource = Array.isArray(tr?.htr) ? tr.htr : [];
+    const xySource = Array.isArray(tr?.xy) ? tr.xy : [];
+
+    const lla = [];
+    const htr = [];
+    const xy = [];
+
+    for (let i = 0; i < llaSource.length; i++) {
+      const llaIn = llaSource[i];
+      if (!Array.isArray(llaIn) || llaIn.length < 3) continue;
+
+      const lat = Number(llaIn[0]);
+      const lon = Number(llaIn[1]);
+      const alt = Number(llaIn[2]);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(alt)) continue;
+
+      const htrIn = htrSource[i];
+      const hdg = Number(Array.isArray(htrIn) ? htrIn[0] : 0);
+      const pit = Number(Array.isArray(htrIn) ? htrIn[1] : 0);
+      const rol = Number(Array.isArray(htrIn) ? htrIn[2] : 0);
+
+      const xyIn = xySource[i];
+      const x = Number(Array.isArray(xyIn) ? xyIn[0] : 0);
+      const y = Number(Array.isArray(xyIn) ? xyIn[1] : 0);
+      const z = Number(Array.isArray(xyIn) ? xyIn[2] : alt);
+
+      lla.push([lat, lon, alt]);
+      htr.push([
+        Number.isFinite(hdg) ? hdg : 0,
+        Number.isFinite(pit) ? pit : 0,
+        Number.isFinite(rol) ? rol : 0
+      ]);
+      xy.push([
+        Number.isFinite(x) ? x : 0,
+        Number.isFinite(y) ? y : 0,
+        Number.isFinite(z) ? z : alt
+      ]);
+    }
+
+    const gearEvents = Array.isArray(tr?.gearEvents) ? tr.gearEvents : [];
+    const liveryEvents = Array.isArray(tr?.liveryEvents) ? tr.liveryEvents : [];
+
     tr.orderId = orderId;
     tr.id = String(tr.id || `T${String(orderId).padStart(4, '0')}`);
+    tr.name = String(tr?.name || tr.id);
     tr.callsign = sanitizeCallsign(tr.callsign || '');
+    tr.description = String(tr?.description || '');
     tr.createdAt = Number(tr.createdAt) || Date.now();
     tr.aircraftId = String(tr.aircraftId || '');
+    tr.modelUrl = String(tr?.modelUrl || '');
+    tr.sampleMs = sampleMs;
+    tr.base = tr?.base || { lat0: 0, lon0: 0, mLat: 111132, mLon: 111320 };
+    tr.lla = lla;
+    tr.htr = htr;
+    tr.xy = xy;
+    tr.gearEvents = gearEvents;
+    tr.liveryEvents = liveryEvents;
     return tr;
   }
 
@@ -864,13 +915,13 @@
 
   function resolveApiTracks(trackIds, options = {}) {
     const playableOnly = options.playableOnly !== false;
-    const source = playableOnly ? tracks.filter((t) => t?.lla?.length) : tracks.slice();
+    const source = playableOnly ? tracks.filter((t) => t.lla.length) : tracks.slice();
     if (trackIds == null) return source;
 
     const ids = Array.isArray(trackIds) ? trackIds : [trackIds];
     const idSet = new Set(ids.map((id) => String(id || '').trim()).filter(Boolean));
     if (!idSet.size) return [];
-    return source.filter((t) => idSet.has(String(t?.id || '')));
+    return source.filter((t) => idSet.has(t.id));
   }
 
   function getPlaybackStateSnapshot(trackIds) {
@@ -881,9 +932,9 @@
         id: tr.id,
         name: tr.name,
         playbackState: getTrackPlaybackState(tr),
-        idx: Number(tr?._play?.idx || 0),
-        sampleCount: Number(tr?.lla?.length || 0),
-        sampleMs: Number(tr?.sampleMs || 0)
+        idx: tr._play.idx,
+        sampleCount: tr.lla.length,
+        sampleMs: tr.sampleMs
       }))
     };
   }
@@ -1439,11 +1490,11 @@
   }
 
   function applyPrecisionVisualFilter(track, idxFloat) {
-    const n = track?.lla?.length || 0;
+    const n = track.lla.length;
     if (n < 2) {
       return {
-        lla: track?.lla?.[0] || [0, 0, 0],
-        htr: track?.htr?.[0] || [0, 0, 0]
+        lla: track.lla[0],
+        htr: track.htr[0]
       };
     }
 
@@ -1463,98 +1514,120 @@
         ]
       };
     }
-    const strengthEff = strength01 * 4; // 0..4 (50% ~= previous 100%)
-    const key = `${n}|${Math.max(1, track.sampleMs)}|${Math.round(strengthEff * 1000)}`;
+
+    // Unieke cache key op basis van track-eigenschappen en de gekozen sterkte
+    const key = `${n}|${Math.max(1, track.sampleMs)}|ButterQuat_${Math.round(strength01 * 1000)}`;
 
     if (!track._precision || track._precision.key !== key) {
-      const halfWindowMs = lerp(80, 520, Math.min(1, strengthEff)) + Math.max(0, strengthEff - 1) * 520;
-      const halfWindow = Math.max(1, Math.round(halfWindowMs / Math.max(1, track.sampleMs)));
-      const sigma = Math.max(1, halfWindow * (0.65 + Math.max(0, strengthEff - 1) * 0.15));
-      const blend = clamp(lerp(0.22, 0.94, Math.min(1, strengthEff)) + Math.max(0, strengthEff - 1) * 0.06, 0, 0.995);
-      const jitterPosM = lerp(0.02, 0.14, Math.min(1, strengthEff)) + Math.max(0, strengthEff - 1) * 0.08;
-      const jitterAngD = lerp(0.02, 0.09, Math.min(1, strengthEff)) + Math.max(0, strengthEff - 1) * 0.05;
+      // BEREKENING VAN BUTTERWORTH COEFFICIENTEN
+      const fs = 1000 / Math.max(1, track.sampleMs);
+      const fc = lerp(4.0, 0.4, strength01); 
 
-      const smXY = new Array(n);
-      const smLLA = new Array(n);
-      const smHTR = new Array(n);
+      const omega = 2.0 * Math.PI * fc / fs;
+      const tanOmega = Math.tan(omega / 2.0);
+      const tanSq = tanOmega * tanOmega;
+      const sqrt2 = Math.sqrt(2.0);
+
+      const denom = 1.0 + sqrt2 * tanOmega + tanSq;
+      const b0 = tanSq / denom;
+      const b1 = 2.0 * b0;
+      const b2 = b0;
+      const a1 = 2.0 * (tanSq - 1.0) / denom;
+      const a2 = (1.0 - sqrt2 * tanOmega + tanSq) / denom;
+
+      const rawX = new Float64Array(n);
+      const rawY = new Float64Array(n);
+      const rawZ = new Float64Array(n);
+      const qW = new Float64Array(n);
+      const qX = new Float64Array(n);
+      const qY = new Float64Array(n);
+      const qZ = new Float64Array(n);
+
       const toRad = Math.PI / 180;
       const toDeg = 180 / Math.PI;
 
       for (let i = 0; i < n; i++) {
-        const iStart = Math.max(0, i - halfWindow);
-        const iEnd = Math.min(n - 1, i + halfWindow);
+        rawX[i] = track.xy[i][0];
+        rawY[i] = track.xy[i][1];
+        rawZ[i] = track.xy[i][2];
 
-        let wSum = 0;
-        let xSum = 0;
-        let ySum = 0;
-        let zSum = 0;
-        let hdgCos = 0;
-        let hdgSin = 0;
-        let pitCos = 0;
-        let pitSin = 0;
-        let rolCos = 0;
-        let rolSin = 0;
+        const yaw = track.htr[i][0] * toRad;
+        const pitch = track.htr[i][1] * toRad;
+        const roll = track.htr[i][2] * toRad;
 
-        for (let j = iStart; j <= iEnd; j++) {
-          const d = (j - i) / sigma;
-          const w = Math.exp(-0.5 * d * d);
-          const xy = track.xy[j] || [0, 0, track.lla[j]?.[2] || 0];
-          const htr = track.htr[j] || [0, 0, 0];
+        const cy = Math.cos(yaw * 0.5), sy = Math.sin(yaw * 0.5);
+        const cp = Math.cos(pitch * 0.5), sp = Math.sin(pitch * 0.5);
+        const cr = Math.cos(roll * 0.5), sr = Math.sin(roll * 0.5);
 
-          xSum += xy[0] * w;
-          ySum += xy[1] * w;
-          zSum += xy[2] * w;
+        qW[i] = cr * cp * cy + sr * sp * sy;
+        qX[i] = sr * cp * cy - cr * sp * sy;
+        qY[i] = cr * sp * cy + sr * cp * sy;
+        qZ[i] = cr * cp * sy - sr * sp * cy;
+      }
 
-          const hdgR = htr[0] * toRad;
-          const pitR = htr[1] * toRad;
-          const rolR = htr[2] * toRad;
-          hdgCos += Math.cos(hdgR) * w;
-          hdgSin += Math.sin(hdgR) * w;
-          pitCos += Math.cos(pitR) * w;
-          pitSin += Math.sin(pitR) * w;
-          rolCos += Math.cos(rolR) * w;
-          rolSin += Math.sin(rolR) * w;
-          wSum += w;
+      function filtfilt(arr) {
+        const forward = new Float64Array(n);
+        const output = new Float64Array(n);
+
+        let x1 = arr[0], x2 = arr[0];
+        let y1 = arr[0], y2 = arr[0];
+        for (let i = 0; i < n; i++) {
+          const x = arr[i];
+          const y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+          forward[i] = y;
+          x2 = x1; x1 = x;
+          y2 = y1; y1 = y;
         }
 
-        if (wSum <= 1e-9) {
-          smXY[i] = [...(track.xy[i] || [0, 0, track.lla[i]?.[2] || 0])];
-          smLLA[i] = [...(track.lla[i] || [0, 0, 0])];
-          smHTR[i] = [...(track.htr[i] || [0, 0, 0])];
-          continue;
+        let r1 = forward[n - 1], r2 = forward[n - 1];
+        let z1 = forward[n - 1], z2 = forward[n - 1];
+        for (let i = n - 1; i >= 0; i--) {
+          const r = forward[i];
+          const z = b0 * r + b1 * r1 + b2 * r2 - a1 * z1 - a2 * z2;
+          output[i] = z;
+          r2 = r1; r1 = r;
+          z2 = z1; z1 = z;
         }
+        return output;
+      }
 
-        const rawXY = track.xy[i] || [0, 0, track.lla[i]?.[2] || 0];
-        const rawHTR = track.htr[i] || [0, 0, 0];
+      const smX = filtfilt(rawX);
+      const smY = filtfilt(rawY);
+      const smZ = filtfilt(rawZ);
+      const smQW = filtfilt(qW);
+      const smQX = filtfilt(qX);
+      const smQY = filtfilt(qY);
+      const smQZ = filtfilt(qZ);
 
-        const smX = xSum / wSum;
-        const smY = ySum / wSum;
-        const smZ = zSum / wSum;
-        const smHdg = Math.atan2(hdgSin / wSum, hdgCos / wSum) * toDeg;
-        const smPit = Math.atan2(pitSin / wSum, pitCos / wSum) * toDeg;
-        const smRol = Math.atan2(rolSin / wSum, rolCos / wSum) * toDeg;
+      const smXY = new Array(n);
+      const smLLA = new Array(n);
+      const smHTR = new Array(n);
 
-        let outX = lerp(rawXY[0], smX, blend);
-        let outY = lerp(rawXY[1], smY, blend);
-        let outZ = lerp(rawXY[2], smZ, blend);
-        let outHdg = lerpAngleDeg(rawHTR[0], smHdg, blend);
-        let outPit = lerpAngleDeg(rawHTR[1], smPit, blend);
-        let outRol = lerpAngleDeg(rawHTR[2], smRol, blend);
-
-        if (Math.abs(outX - rawXY[0]) < jitterPosM) outX = smX;
-        if (Math.abs(outY - rawXY[1]) < jitterPosM) outY = smY;
-        if (Math.abs(outZ - rawXY[2]) < jitterPosM) outZ = smZ;
-        if (Math.abs(angleDeltaDeg(rawHTR[0], outHdg)) < jitterAngD) outHdg = smHdg;
-        if (Math.abs(angleDeltaDeg(rawHTR[1], outPit)) < jitterAngD) outPit = smPit;
-        if (Math.abs(angleDeltaDeg(rawHTR[2], outRol)) < jitterAngD) outRol = smRol;
-
-        smXY[i] = [outX, outY, outZ];
+      for (let i = 0; i < n; i++) {
+        smXY[i] = [smX[i], smY[i], smZ[i]];
         smLLA[i] = [
-          track.base.lat0 + (outY / track.base.mLat),
-          track.base.lon0 + (outX / track.base.mLon),
-          outZ
+          track.base.lat0 + (smY[i] / track.base.mLat),
+          track.base.lon0 + (smX[i] / track.base.mLon),
+          smZ[i]
         ];
-        smHTR[i] = [outHdg, outPit, outRol];
+
+        let qw = smQW[i], qx = smQX[i], qy = smQY[i], qz = smQZ[i];
+        const mag = Math.sqrt(qw*qw + qx*qx + qy*qy + qz*qz);
+        if (mag > 1e-6) { qw /= mag; qx /= mag; qy /= mag; qz /= mag; }
+
+        const sinp = 2 * (qw * qy - qz * qx);
+        const pitch = Math.abs(sinp) >= 1 ? (Math.PI / 2) * Math.sign(sinp) : Math.asin(sinp);
+        
+        const siny_cosp = 2 * (qw * qz + qx * qy);
+        const cosy_cosp = 1 - 2 * (qy * qy + qz * qz);
+        let heading = Math.atan2(siny_cosp, cosy_cosp) * toDeg;
+        if (heading < 0) heading += 360;
+
+        const sinr_cosp = 2 * (qw * qx + qy * qz);
+        const cosr_cosp = 1 - 2 * (qx * qx + qy * qy); // Typfout hersteld: qx * qx in plaats van qx * x
+        const roll = Math.atan2(sinr_cosp, cosr_cosp) * toDeg;
+
+        smHTR[i] = [heading, pitch * toDeg, roll];
       }
 
       track._precision = { key, lla: smLLA, htr: smHTR, xy: smXY };
@@ -1802,14 +1875,12 @@
     if (!g?.setPositionOrientationAndScale) return;
     const L = track._pool.lla;
     const H = track._pool.htr;
-    const lla0 = track.lla?.[0] || [0, 0, 0];
-    const htr0 = track.htr?.[0] || [0, 0, 0];
-    L[0] = finiteOr(lla?.[0], finiteOr(lla0[0], 0));
-    L[1] = finiteOr(lla?.[1], finiteOr(lla0[1], 0));
-    L[2] = finiteOr(lla?.[2], finiteOr(lla0[2], 0));
-    H[0] = finiteOr(htr?.[0], finiteOr(htr0[0], 0));
-    H[1] = finiteOr(htr?.[1], finiteOr(htr0[1], 0));
-    H[2] = finiteOr(htr?.[2], finiteOr(htr0[2], 0));
+    L[0] = lla[0];
+    L[1] = lla[1];
+    L[2] = lla[2];
+    H[0] = htr[0];
+    H[1] = htr[1];
+    H[2] = htr[2];
     try { g.setPositionOrientationAndScale(L, H, null); } catch { }
     ensureGhostCallsignLabel(track, L);
   }
@@ -2085,12 +2156,12 @@
     const ac = geofs?.aircraft?.instance;
     if (!ac) return false;
 
-    const lat = finiteOr(lla?.[0], finiteOr(ac?.llaLocation?.[0], 0));
-    const lon = finiteOr(lla?.[1], finiteOr(ac?.llaLocation?.[1], 0));
-    const alt = finiteOr(lla?.[2], finiteOr(ac?.llaLocation?.[2], 0));
-    const hdg = finiteOr(htr?.[0], 0);
-    const pit = finiteOr(htr?.[1], 0);
-    const rol = finiteOr(htr?.[2], 0);
+    const lat = lla[0];
+    const lon = lla[1];
+    const alt = lla[2];
+    const hdg = htr[0];
+    const pit = htr[1];
+    const rol = htr[2];
 
     try {
       if (Array.isArray(ac.llaLocation) && ac.llaLocation.length >= 3) {
@@ -2138,10 +2209,10 @@
   function poseAt(track, i1, i2, f, dt) {
     const idxFloat = i1 + clamp(f, 0, 1);
     if (playbackSliderDragging) {
-      const aL = track?.lla?.[i1] || track?.lla?.[0] || [0, 0, 0];
-      const bL = track?.lla?.[i2] || aL;
-      const aH = track?.htr?.[i1] || track?.htr?.[0] || [0, 0, 0];
-      const bH = track?.htr?.[i2] || aH;
+      const aL = track.lla[i1];
+      const bL = track.lla[i2];
+      const aH = track.htr[i1];
+      const bH = track.htr[i2];
       const ff = clamp(f, 0, 1);
       const outL = track._pool.tmpB;
       interpLLA(aL, bL, ff, outL);
@@ -2385,18 +2456,18 @@
         orderId: t.orderId,
         id: t.id,
         name: t.name,
-        callsign: t.callsign || '',
-        description: t.description || '',
+        callsign: t.callsign,
+        description: t.description,
         createdAt: t.createdAt,
         aircraftId: t.aircraftId,
         modelUrl: t.modelUrl,
         sampleMs: t.sampleMs,
         base: t.base,
-        lla: t.lla || [],
-        htr: t.htr || [],
-        xy: t.xy || [],
-        gearEvents: t.gearEvents || [],
-        liveryEvents: t.liveryEvents || []
+        lla: t.lla,
+        htr: t.htr,
+        xy: t.xy,
+        gearEvents: t.gearEvents,
+        liveryEvents: t.liveryEvents
       }, 1);
       initTrackRuntime(tr);
       return tr;
@@ -2491,18 +2562,18 @@
             orderId: t.orderId,
             id: t.id,
             name: t.name || 'Imported',
-            callsign: t.callsign || '',
-            description: t.description || '',
+            callsign: t.callsign,
+            description: t.description,
             createdAt: t.createdAt,
             aircraftId: t.aircraftId,
             modelUrl: t.modelUrl,
-            sampleMs: Number(t.sampleMs) || 16,
+            sampleMs: t.sampleMs,
             base: t.base,
-            lla: t.lla || [],
-            htr: t.htr || [],
-            xy: t.xy || [],
-            gearEvents: t.gearEvents || [],
-            liveryEvents: t.liveryEvents || []
+            lla: t.lla,
+            htr: t.htr,
+            xy: t.xy,
+            gearEvents: t.gearEvents,
+            liveryEvents: t.liveryEvents
           }, nextTrackNumber++);
           initTrackRuntime(tr);
           added.push(tr);
@@ -2586,8 +2657,8 @@
   }
 
   function getTrackDurationMs(track) {
-    const last = Math.max(0, (track?.lla?.length || 1) - 1);
-    return last * Math.max(1, track?.sampleMs || 16);
+    const last = Math.max(0, track.lla.length - 1);
+    return last * track.sampleMs;
   }
 
   function getLongestTimelineTrack(targets) {
