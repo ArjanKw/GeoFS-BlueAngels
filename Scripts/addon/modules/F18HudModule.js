@@ -251,7 +251,7 @@
   
     }
 
-    static drawBoresight(ctx, cx, symbolCy, pixelsPerDeg, w, h) {
+    static drawBoresight(ctx, cx, cy, cameraOffsetPx, w, h) {
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.strokeStyle = this.DEFAULT_COLOR;
@@ -259,7 +259,7 @@
     ctx.setLineDash([]);
 
     const wx = cx;
-    const wy = symbolCy - 1.5 * pixelsPerDeg;
+    const wy = cy - cameraOffsetPx;
     const ww = w * 0.027;
     const wh = h * 0.016;
     const stub = w * 0.010;
@@ -281,8 +281,7 @@
     ctx.restore();
   }
 
-  static drawPitchLadder(ctx, camera, ac, cx, clipCy, symbolCy, pixelsPerDeg, w, h) {
-    const pitchDeg = -ac.htr[1] || 0;
+  static drawPitchLadder(ctx, camera, pitchDeg, cx, clipCy, symbolCy, pixelsPerDeg, w, h) {
     const cameraCompY = symbolCy - clipCy;
     const horizonOffsetY = pitchDeg * pixelsPerDeg + cameraCompY;
 
@@ -301,11 +300,10 @@
     ctx.closePath();
     ctx.clip();
 
-    // Always rotate around the visual center of the HUD, while still applying
-    // camera-height compensation through the vertical ladder offset.
-    ctx.translate(cx, clipCy);
+    // Keep the horizon vertically tied to the real horizon (pitch + camera offset).
+    // Roll only rotates the ladder around that horizon anchor point.
+    ctx.translate(cx, clipCy + horizonOffsetY);
     ctx.rotate(-camera.roll);
-    ctx.translate(0, horizonOffsetY);
     ctx.strokeStyle = this.DEFAULT_COLOR;
     ctx.lineWidth = 1.5;
 
@@ -370,16 +368,17 @@
   
   }
 
-  computeFpvScreenPosition(camera, cx, symbolCy, pixelsPerDeg, pixelsPerDegX) {
+  computeFpvScreenPosition(camera, cx, cy, pixelsPerDeg, pixelsPerDegX, cameraOffsetPx) {
     const fpvState = this.fpvState;
     if (!fpvState.valid) return null;
 
+    const boresightY = cy - cameraOffsetPx;
     const dxBody = -(fpvState.relAzDeg * pixelsPerDegX);
     const dyBody = -(fpvState.relElDeg * pixelsPerDeg);
     const cr = Math.cos(-camera.roll);
     const sr = Math.sin(-camera.roll);
     const fpvX = cx + (dxBody * cr - dyBody * sr);
-    const fpvY = symbolCy + (dxBody * sr + dyBody * cr);
+    const fpvY = boresightY + (dxBody * sr + dyBody * cr);
 
     return { x: fpvX, y: fpvY };
   
@@ -1061,24 +1060,23 @@
       if (camera && ac?.htr) {
         const cx = w / 2;
         const cy = h / 2;
-        const clipCy = cy;
+        const pitchDeg = -(ac.htr[1] || 0);
 
         const { pixelsPerDeg, pixelsPerDegX, cameraOffsetPx } = this.computeHudGeometry(w, h);
-        const symbolCy = cy - cameraOffsetPx;
 
         this.updateFpvState(ac.llaLocation, ac);
         if (hudLevel == 'FULL') {
-          F18HudModule.drawBoresight(o, cx, symbolCy, pixelsPerDeg, w, h);
+          F18HudModule.drawBoresight(o, cx, cy, cameraOffsetPx, w, h);
         }
-        F18HudModule.drawPitchLadder(o, camera, ac, cx, clipCy, symbolCy, pixelsPerDeg, w, h);
+        F18HudModule.drawPitchLadder(o, camera, pitchDeg, cx, cy, cy - cameraOffsetPx, pixelsPerDeg, w, h);
 
-        const fpvPos = this.computeFpvScreenPosition(camera, cx, symbolCy, pixelsPerDeg, pixelsPerDegX);
-        const fpvDrawn = F18HudModule.drawFpv(o, fpvPos, cx, clipCy, w, h);
+        const fpvPos = this.computeFpvScreenPosition(camera, cx, cy, pixelsPerDeg, pixelsPerDegX, cameraOffsetPx);
+        const fpvDrawn = F18HudModule.drawFpv(o, fpvPos, cx, cy, w, h);
         if (hudLevel !== 'MIN') {
           F18HudModule.drawIlsDeviationCues(o, fpvDrawn, helperModule, w, h);
         }
         const isGearDown = window.controls?.gear?.position < 0.5;
-        F18HudModule.drawAoaBracket(o, fpvDrawn, cx, clipCy, pixelsPerDeg, w, h, aoa, isGearDown);
+        F18HudModule.drawAoaBracket(o, fpvDrawn, cx, cy, pixelsPerDeg, w, h, aoa, isGearDown);
       }
 
       if (this.isWpnFireFlashVisible()) {

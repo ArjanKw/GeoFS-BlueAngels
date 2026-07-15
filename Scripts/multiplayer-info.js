@@ -27,7 +27,7 @@
     function updateMultiplayer() {
         counter++;
 
-        Object.values(multiplayer.visibleUsers).forEach(function (e) {
+        Object.values(multiplayer?.visibleUsers).forEach(function (e) {
             if (e.label && e.callsign) {
                 if (!displayLabel) {
                     e.label.text = "";
@@ -65,52 +65,50 @@
     }
 
    function calculateClosingSpeed(myPos, myHeading, mySpeedKnots, otherData) {
-    const DEG_TO_RAD = Math.PI / 180;
-    const M_TO_NM = 0.000539957;
+        const DEG_TO_RAD = Math.PI / 180;
+        const M_TO_NM = 0.000539957;
 
+        // My velocity vector in knots
+        const myHeadingRad = myHeading * DEG_TO_RAD;
+        const myVelKnots = [
+            mySpeedKnots * Math.sin(myHeadingRad),
+            mySpeedKnots * Math.cos(myHeadingRad),
+            0
+        ];
 
+        // Other aircraft velocity vector in knots
+        const otherHeadingRad = otherData.co[3] * DEG_TO_RAD;
+        const otherVelKnots = [
+            otherData.st.as * Math.sin(otherHeadingRad),
+            otherData.st.as * Math.cos(otherHeadingRad),
+            0
+        ];
 
-    // My velocity vector in knots
-    const myHeadingRad = myHeading * DEG_TO_RAD;
-    const myVelKnots = [
-        mySpeedKnots * Math.sin(myHeadingRad),
-        mySpeedKnots * Math.cos(myHeadingRad),
-        0
-    ];
+        // Position difference
+        const latAvg = ((myPos[0] + otherData.co[0]) / 2) * DEG_TO_RAD;
+        const dx = (otherData.co[1] - myPos[1]) * 111320 * Math.cos(latAvg);
+        const dy = (otherData.co[0] - myPos[0]) * 110540;
+        const dz = otherData.co[2] - myPos[2];
+        const d = [dx, dy, dz];
 
-    // Other aircraft velocity vector in knots
-    const otherHeadingRad = otherData.co[3] * DEG_TO_RAD;
-    const otherVelKnots = [
-        otherData.st.as * Math.sin(otherHeadingRad),
-        otherData.st.as * Math.cos(otherHeadingRad),
-        0
-    ];
+        const dMag = Math.sqrt(d[0]**2 + d[1]**2 + d[2]**2);
+        const dUnit = [d[0]/dMag, d[1]/dMag, d[2]/dMag];
+        const distanceNM = dMag * M_TO_NM;
 
-    // Position difference
-    const latAvg = ((myPos[0] + otherData.co[0]) / 2) * DEG_TO_RAD;
-    const dx = (otherData.co[1] - myPos[1]) * 111320 * Math.cos(latAvg);
-    const dy = (otherData.co[0] - myPos[0]) * 110540;
-    const dz = otherData.co[2] - myPos[2];
-    const d = [dx, dy, dz];
+        // Relative velocity
+        const relVelKnots = [
+            otherVelKnots[0] - myVelKnots[0],
+            otherVelKnots[1] - myVelKnots[1],
+            otherVelKnots[2] - myVelKnots[2]
+        ];
 
-    const dMag = Math.sqrt(d[0]**2 + d[1]**2 + d[2]**2);
-    const dUnit = [d[0]/dMag, d[1]/dMag, d[2]/dMag];
-    const distanceNM = dMag * M_TO_NM;
-
-    // Relative velocity
-    const relVelKnots = [
-        otherVelKnots[0] - myVelKnots[0],
-        otherVelKnots[1] - myVelKnots[1],
-        otherVelKnots[2] - myVelKnots[2]
-    ];
-
-    // Closing speed
-    const closingSpeedKnots = relVelKnots[0]*dUnit[0] + relVelKnots[1]*dUnit[1] + relVelKnots[2]*dUnit[2];
-    return {
-        closingSpeedKnots,
-        distanceNM
-    };
-}
+        // Closing speed
+        const closingSpeedKnots = relVelKnots[0]*dUnit[0] + relVelKnots[1]*dUnit[1] + relVelKnots[2]*dUnit[2];
+        return {
+            closingSpeedKnots,
+            distanceNM
+        };
+    }
 
     window.addEventListener("keyup", function (e) {
         if (e.key == toggleDisplayKey) {

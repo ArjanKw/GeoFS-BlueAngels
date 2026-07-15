@@ -31,12 +31,15 @@
     let infoDisplay = document.getElementById("natrium-flight-info");
 
     function updateFlightInfo() {
+        if (!geofs?.aircraft?.instance?.definition || !geofs?.animation?.values) {
+            return;
+        }
         counter++;
         counter = counter % 10;
 
         let airSpeedKnots = geofs.animation.values.airspeedms * msToKnots;
-        let groundSpeed = "GS: " + geofs.animation.values.groundSpeedKnt.toLocaleString('en-US', { maximumFractionDigits: 0 }) + " kn";
-        let trueAirSpeed = airSpeedKnots.toLocaleString('en-US', { maximumFractionDigits: 0 }) + " kn";
+        let groundSpeed = "GS: " + geofs.animation.values.groundSpeedKnt?.toLocaleString('en-US', { maximumFractionDigits: 0 }) + " kn";
+        let trueAirSpeed = airSpeedKnots?.toLocaleString('en-US', { maximumFractionDigits: 0 }) + " kn";
         let mach = Math.round(geofs.animation.values.mach * 100) / 100;
         if (mach > minMachNumber) {
             mach = "M" + mach;
@@ -44,26 +47,26 @@
             mach = "";
         }
         let inLandingConfig = airSpeedKnots < 200 && airSpeedKnots > 50 && geofs.animation.values.haglFeet < 1000 && geofs.animation.values.climbrate < 0 && geofs.animation.values.haglFeet > 10;
-        let altAboveGround = geofs.animation.values.altitude.toLocaleString('en-US', { maximumFractionDigits: 0 }) + " ft";
-        let radioAltimeter = geofs.animation.values.haglFeet.toLocaleString('en-US', { maximumFractionDigits: 0 }) + " ft";
+        let altAboveGround = geofs.animation.values.altitude?.toLocaleString('en-US', { maximumFractionDigits: 0 }) + " ft";
+        let radioAltimeter = geofs.animation.values.haglFeet?.toLocaleString('en-US', { maximumFractionDigits: 0 }) + " ft";
 
         let flightLevel = geofs.animation.values.altitude / 100;
         if (flightLevel >= minFlightLevel) {
             if (flightLevel < 100) {
                 flightLevel = "0" + flightLevel;
             }
-            flightLevel = "FL" + flightLevel.toLocaleString('en-US', { maximumFractionDigits: 0 }) + " - ";
+            flightLevel = "FL" + flightLevel?.toLocaleString('en-US', { maximumFractionDigits: 0 }) + " - ";
         } else {
             flightLevel = "";
         }
 
         let climbrate = geofs.animation.values.climbrate;
         if (climbrate > 0) {
-            climbrate = " (+" + climbrate.toLocaleString('en-US', { maximumFractionDigits: 0 }) + ")";
+            climbrate = " (+" + climbrate?.toLocaleString('en-US', { maximumFractionDigits: 0 }) + ")";
         } else if (climbrate == 0) {
             climbrate = "";
         } else {
-            climbrate = " (" + climbrate.toLocaleString('en-US', { maximumFractionDigits: 0 }) + ")";
+            climbrate = " (" + climbrate?.toLocaleString('en-US', { maximumFractionDigits: 0 }) + ")";
         }
         let windspeed = Math.round(geofs.animation.values.windSpeed);
         if (windspeed != 0) {

@@ -795,6 +795,12 @@ Only relevant cases are listed:
 
 
 # TODO
+## Integrations
+https://github.com/tylerbmusic/GeoFS-Failures/blob/main/userscript.js
+https://github.com/OC135/GeoFs-weapon-addon/tree/main
+https://github.com/Popper412/Gunniing-System-GeoFS/blob/main/GeoFS-Gunning-System-DEMO
+https://radarthing.com/
+
 ## Controls (like fuel probe)
 V Have control buttons bottom right in GeoFS UI (like PROBE OPEN/CLOSED)
 - Add option to keybind controls
