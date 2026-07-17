@@ -279,6 +279,34 @@
                     "credits": "GeoFS Blue Angels"
                 },
                 {
+                    "name": "Blue Angels 1 Year Anniversary - GeoFS",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/F18/Blue-Angels-1-year-anniversary-geo-fs.png"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels 1 Year Anniversary - Natrium",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/F18/Blue-Angels-1-year-anniversary-natrium.png"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels 1 Year Anniversary - Sonic",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/F18/Blue-Angels-1-year-anniversary-sonic.png"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Blue Angels 1 Year Anniversary - LJ-Walch",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/F18/Blue-Angels-1-year-anniversary-lj-walch.png"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
                     "name": "Blue Angels Specials - Black Angel",
                     "texture": [
                         "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/F18/Blue-Angels-Special-Black-2.png"
