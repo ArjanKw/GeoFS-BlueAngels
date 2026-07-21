@@ -314,6 +314,13 @@
                     "credits": "GeoFS Blue Angels"
                 },
                 {
+                    "name": "Blue Angels 1 Year Anniversary - Big-E",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/F18/Blue-Angels-1-year-anniversary-big-e.png"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
                     "name": "Blue Angels Specials - Black Angel",
                     "texture": [
                         "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/F18/Blue-Angels-Special-Black-2.png"
