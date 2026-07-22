@@ -1,137 +1,130 @@
 // ==UserScript==
 // @name         GeoFS Ground Stability Fix
 // @namespace    https://github.com/ArjanKw/GeoFS-BlueAngels/
-// @version      1.0.0
-// @description  Fixes slope drift + braking instability
-// @match        https://*.geo-fs.com/*
+// @version      2.0.0
+// @description  Prevents your aircraft from yawing left/right while standing still, even when braking. Also prevents drifting left/right when braking and getting to a stop.
+// @match        https://www.geo-fs.com/*
 // @grant        none
 // ==/UserScript==
 
 (function () {
     'use strict';
 
-    function mag(v) {
-        return Math.sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
-    }
+    class GroundStabilityModule {
+        constructor() {
+            this.animFrameId = null;
+            this.lastLogTime = 0;
+        }
 
-    function normalize(v) {
-        let m = mag(v);
-        if (m === 0) return [0,0,0];
-        return [v[0]/m, v[1]/m, v[2]/m];
-    }
+        start() {
+            this.loop();
+        }
 
-    function dot(a,b) {
-        return a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
-    }
+        loop() {
+            this.updateStability();
+            this.animFrameId = requestAnimationFrame(() => this.loop());
+        }
 
-    function updateGroundFix() {
-        try {
-            const aircraft = geofs?.aircraft?.instance;
-            if (!aircraft) return;
+        // Dampens all rotational speeds to a complete standstill (Remains 100% unengaged!)
+        zeroAllAngularVelocity(rb) {
+            if (Array.isArray(rb.angularVelocity)) {
+                rb.angularVelocity[0] = 0;
+                rb.angularVelocity[1] = 0;
+                rb.angularVelocity[2] = 0;
+            }
+            if (Array.isArray(rb.v_angularVelocity)) {
+                rb.v_angularVelocity[0] = 0;
+                rb.v_angularVelocity[1] = 0;
+                rb.v_angularVelocity[2] = 0;
+            }
+        }
 
-            const rb = aircraft.rigidBody;
-            if (!rb) return;
+        // Actively cleared all accumulated rotational forces (torque and acceleration) in the engine
+        suppressRotationalForces(rb) {
+            const forceProps = ['v_rotationalAcceleration', 'rotationalAcceleration', 'v_torque', 'torque'];
+            for (const prop of forceProps) {
+                if (Array.isArray(rb[prop])) {
+                    rb[prop][0] = 0;
+                    rb[prop][1] = 0;
+                    rb[prop][2] = 0;
+                }
+            }
+        }
 
-            const controls = geofs.controls;
-            if (!controls) return;
+        updateStability() {
+            const aircraft = geofs.aircraft?.instance;
 
-            if (!aircraft.groundContact) return;
-
-            const vel = rb.velocity || [0,0,0];
-            const speed = mag(vel);
-            const brakes = controls.brakes || 0;
-
-            // -----------------------------
-            // ✅ 1. HEADING VECTOR
-            // -----------------------------
-            const headingRad = aircraft.htr?.[0] || 0;
-
-            const forward = [
-                Math.sin(headingRad),
-                0,
-                Math.cos(headingRad)
-            ];
-
-            const lateral = [
-                forward[2],
-                0,
-                -forward[0]
-            ];
-
-            const forwardSpeed = dot(vel, forward);
-            const lateralSpeed = dot(vel, lateral);
-
-            const slip = Math.abs(lateralSpeed) / (speed + 0.01);
-
-            // -----------------------------
-            // ✅ 2. STABLE PARK LOCK
-            // -----------------------------
-            if (brakes > 0.9 && speed < 0.5) {
-                rb.velocity = [0,0,0];
-                rb.angularVelocity = [0,0,0];
+            if (!aircraft?.groundContact || !aircraft.rigidBody) {
                 return;
             }
 
-            // -----------------------------
-            // ✅ 3. BRAKE STABILITY (KEY FIX)
-            // -----------------------------
-            if (brakes > 0.1 && speed < 30) {
+            const rb = aircraft.rigidBody;
+            const brakes = aircraft.brakesOn ? 1 : 0;
+            const yawInput = aircraft.animationValue.rawYaw;
 
-                // 👉 reduce braking effect when slipping
-                let stability = 1 - Math.min(slip * 2.0, 1);
+            const vel = aircraft.velocity;
+            if (!vel) return;
 
-                // scale braking indirectly via velocity damping
-                rb.velocity[0] *= stability;
-                rb.velocity[2] *= stability;
+            const vx = vel[0] || 0;
+            const vy = vel[1] || 0;
+            const vz = vel[2] || 0;
+            const speed = Math.sqrt(vx * vx + vy * vy + vz * vz);
 
-                // -------------------------
-                // ✅ YAW DAMPING DURING BRAKE
-                // -------------------------
-                rb.angularVelocity[1] *= (0.2 + 0.8 * stability);
+            // ==========================================
+            // 1. STANDSTILL LOCK.
+            // ==========================================
+            if (brakes > 0.5 && speed < 0.3) {
+                vel[0] = 0;
+                vel[2] = 0;
+                if (rb.velocity) {
+                    rb.velocity[0] = 0;
+                    rb.velocity[2] = 0;
+                }
+                this.zeroAllAngularVelocity(rb);
+                return;
             }
 
-            // -----------------------------
-            // ✅ 4. LOW SPEED LATERAL STABILITY
-            // -----------------------------
-            if (speed < 10) {
+            // ==========================================
+            // 2. LOW-SPEED BRAKING STEERING FIX (< 15 m/s)
+            // ==========================================
+            if (brakes > 0.1 && speed < 15) {
+                // Eliminate the reverse frictional force (Torque/Acceleration) from GeoFS
+                this.suppressRotationalForces(rb);
 
-                let lateralDamping = 0.9 + (1 - speed/10) * 0.1;
+                const isSteering = Math.abs(yawInput) > 0.05;
 
-                // remove sideways drift
-                let newVel = [...vel];
-                let latComponent = lateralSpeed;
+                if (!isSteering) {
+                    // Braking whilst travelling straight ahead: Freeze Yaw (Index 2) and Roll (Index 0). Pitch (Index 1) remains free.
+                    if (Array.isArray(rb.angularVelocity)) {
+                        rb.angularVelocity[0] = 0;
+                        rb.angularVelocity[2] = 0;
+                    }
+                    if (Array.isArray(rb.v_angularVelocity)) {
+                        rb.v_angularVelocity[0] = 0;
+                        rb.v_angularVelocity[2] = 0;
+                    }
+                } else {
+                    // Steering whilst braking: Set the correct rotation speed on Index 2 (Yaw)
+                    const turnFactor = 0.35;
+                    const speedScaling = Math.min(speed / 5, 1.0);
+                    let targetYaw = yawInput * turnFactor * speedScaling;
 
-                newVel[0] -= lateral[0] * latComponent * lateralDamping;
-                newVel[2] -= lateral[2] * latComponent * lateralDamping;
-
-                rb.velocity = newVel;
+                    if (Array.isArray(rb.angularVelocity)) rb.angularVelocity[2] = targetYaw;
+                    if (Array.isArray(rb.v_angularVelocity)) rb.v_angularVelocity[2] = targetYaw;
+                }
             }
-
-            // -----------------------------
-            // ✅ 5. ANTI-YAW DRIFT (GENERAL)
-            // -----------------------------
-            if (speed < 2) {
-                rb.angularVelocity[1] *= 0.2;
-            }
-
-        } catch (e) {
-            // safe fail
         }
     }
 
-    function loop() {
-        updateGroundFix();
-        requestAnimationFrame(loop);
-    }
-
-    function waitForGeoFS() {
-        if (typeof geofs !== "undefined" && geofs.aircraft) {
-            console.log("[GroundFix] Active");
-            loop();
+    function init() {
+        if (typeof geofs !== 'undefined' && geofs.aircraft?.instance) {
+            console.log('[GroundStabilityModule] Initialized v2.7.0 (Deep Override + Telemetry)');
+            const stabilityModule = new GroundStabilityModule();
+            stabilityModule.start();
         } else {
-            setTimeout(waitForGeoFS, 500);
+            setTimeout(init, 500);
         }
     }
 
-    waitForGeoFS();
+    init();
 })();
