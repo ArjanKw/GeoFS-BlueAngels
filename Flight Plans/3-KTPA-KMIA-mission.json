@@ -1,15 +1,15 @@
 {
   "version": 1,
-  "name": "KNPA to KTPA",
+  "name": "KTPA to KMIA",
   "group": "Blue Angels",
-  "flight": "BA9",
+  "flight": "BAF4",
   "wingman": "",
   "flightData": {
     "startTimeZ": "1255",
     "startTaxiZ": "1300",
     "startToZ": "1305",
-    "timeOverTargetZ": "1400",
-    "endTimeZ": "1415"
+    "timeOverTargetZ": "1350",
+    "endTimeZ": "1400"
   },
   "positions": [
     {
@@ -38,11 +38,11 @@
     "altitude": "FL200",
     "speed": "350"
   },
-  "notes": "Transition flight from Pensacola to Tampa. ",
+  "notes": "Transition flight from Tampa to Miami International Airport. Taxi 15 knots. After take-off set A/P to NAV, check first leg in Flight Plan and set VS to 5,000 ft/min. 45 min. flight",
   "landing": {
-    "airportIcao": "KTAP",
-    "runway": "19R",
-    "nav1": "108.5",
+    "airportIcao": "KMIA",
+    "runway": "9",
+    "nav1": "110.9",
     "pattern": "Straight In",
     "formation": "Wingman",
     "altEntryAgl": "2000",
@@ -51,129 +51,99 @@
     "speedDownwindKn": "160"
   },
   "createdAt": "2026-07-02T12:18:32.514Z",
-  "updatedAt": "2026-07-19T10:01:43.439Z",
+  "updatedAt": "2026-07-20T12:05:03.539Z",
   "flightPlan": [
     {
       "id": 0,
-      "ident": "KNPA",
-      "lat": 30.35078,
-      "lon": -87.3291,
+      "ident": "KTPA",
+      "lat": 27.99347,
+      "lon": -82.54133,
       "type": "DPT",
       "alt": 0,
-      "spd": "250",
-      "heading": 68.24,
+      "spd": "",
+      "heading": 181.71,
       "track": 0
     },
     {
       "id": 1,
       "ident": "FL100/250",
-      "lat": 30.56403469851762,
-      "lon": -86.71028137207031,
-      "type": "FIX",
+      "lat": 27.8612,
+      "lon": -82.5458,
+      "type": "NDB",
       "alt": "10000",
-      "spd": "320",
-      "track": 68
+      "spd": "250",
+      "track": 181
     },
     {
       "id": 2,
-      "ident": "FL100/300",
-      "lat": 30.58472602908741,
-      "lon": -86.29142761230469,
+      "ident": "FL200/320",
+      "lat": 27.782290385222524,
+      "lon": -82.48299160486974,
       "type": "FIX",
-      "alt": "10000",
+      "alt": "20000",
       "spd": "320",
-      "track": 86
+      "track": 144
     },
     {
       "id": 3,
-      "ident": "FL150/310",
-      "lat": 30.3266,
-      "lon": -85.7823,
-      "type": "NDB",
-      "alt": "15000",
+      "ident": "FL200/320",
+      "lat": 26.8282,
+      "lon": -81.3914,
+      "type": "VORTAC",
+      "alt": "20000",
       "spd": "320",
-      "track": 120
+      "track": 134
     },
     {
       "id": 4,
       "ident": "FL200/320",
-      "lat": 29.7233,
-      "lon": -85.0281,
-      "type": "NDB",
+      "lat": 26.16406632595637,
+      "lon": -80.98194860085906,
+      "type": "FIX",
       "alt": "20000",
       "spd": "320",
-      "track": 132
+      "track": 151
     },
     {
       "id": 5,
-      "ident": "FL200/320",
-      "lat": 29.017748018496047,
-      "lon": -83.76525878906251,
+      "ident": "FL100/320",
+      "lat": 25.854280326572407,
+      "lon": -80.8140343169316,
       "type": "FIX",
-      "alt": "20000",
+      "alt": "10000",
       "spd": "320",
-      "track": 122
-    },
-    {
-      "id": 6,
-      "ident": "FL200/320",
-      "lat": 28.750804582350163,
-      "lon": -83.25454029917093,
-      "type": "FIX",
-      "alt": "20000",
-      "spd": "320",
-      "track": 120
-    },
-    {
-      "id": 7,
-      "ident": "5000'/250",
-      "lat": 28.465069546676897,
-      "lon": -82.72018432617189,
-      "type": "FIX",
-      "alt": "5000",
-      "spd": "250",
-      "track": 121
-    },
-    {
-      "id": 8,
-      "ident": "2000'/200",
-      "lat": 28.37025631651932,
-      "lon": -82.59727478027345,
-      "type": "FIX",
-      "alt": "2000",
-      "spd": "200",
-      "track": 131
-    },
-    {
-      "id": 9,
-      "ident": "2000'/200",
-      "lat": 28.280800584682314,
-      "lon": -82.54714965820314,
-      "type": "FIX",
-      "alt": "2000",
-      "spd": "200",
       "track": 153
     },
     {
-      "id": 10,
-      "ident": "1500'/180",
-      "lat": 28.199136859968803,
-      "lon": -82.54302978515626,
+      "id": 6,
+      "ident": "2000'/250",
+      "lat": 25.808545671771615,
+      "lon": -80.7048730082576,
       "type": "FIX",
-      "alt": "1500",
-      "spd": "180",
-      "track": 177
+      "alt": "2000",
+      "spd": "250",
+      "track": 114
     },
     {
-      "id": 11,
-      "ident": "KTPA",
-      "lat": 27.99347,
-      "lon": -82.54133,
+      "id": 7,
+      "ident": "1500'/170",
+      "lat": 25.789381309269906,
+      "lon": -80.59777302947683,
+      "type": "FIX",
+      "alt": "1500",
+      "spd": "170",
+      "track": 101
+    },
+    {
+      "id": 8,
+      "ident": "KMIA",
+      "lat": 25.7861,
+      "lon": -80.31486,
       "type": "DST",
       "alt": 0,
       "spd": "",
-      "heading": 181.71,
-      "track": 179
+      "heading": 87.37,
+      "track": 90
     }
   ],
   "markpoints": [
