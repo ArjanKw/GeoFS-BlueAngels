@@ -188,17 +188,35 @@
       return baseZ + offsetZ;
     }
 
-    computeHudGeometry(w, h) {
-    const hudVerticalFovDeg = 2 * Math.atan((F18HudModule.HUD_PHYSICAL_HEIGHT_M / 2) / F18HudModule.CAMERA_TO_HUD_DISTANCE_M) * F18HudModule.RAD_TO_DEG;
-    const pixelsPerDeg = h / hudVerticalFovDeg;
-    const hudPhysicalWidthM = F18HudModule.HUD_PHYSICAL_HEIGHT_M * (w / h);
-    const hudHorizontalFovDeg = 2 * Math.atan((hudPhysicalWidthM / 2) / F18HudModule.CAMERA_TO_HUD_DISTANCE_M) * F18HudModule.RAD_TO_DEG;
-    const pixelsPerDegX = w / hudHorizontalFovDeg;
-    const cameraDeltaZ = this.getCurrentCameraZ() - this.dependencies.cameraModule?.DEFAULT_HUD_CAMERA_Z;
-    const cameraOffsetDeg = Math.atan2(cameraDeltaZ, F18HudModule.CAMERA_TO_HUD_DISTANCE_M) * F18HudModule.RAD_TO_DEG;
-    const cameraOffsetPx = cameraOffsetDeg * pixelsPerDeg * F18HudModule.HUD_PARALLAX_GAIN;
-    return { pixelsPerDeg, pixelsPerDegX, cameraOffsetPx };
-  
+    computeHudGeometry(w, h, camera) {
+      // 1. Probeer de werkelijke verticale FOV (in radialen) uit GeoFS of de camera te halen.
+      // Standaardwaarde is ~45 graden (0.785398 rad) als fallback.
+      let fovYRad = 0.785398; 
+      
+      if (camera && typeof camera.fov === 'number') {
+        // Sommige engines geven FOV in graden, andere in radialen. Correctie indien > 10:
+        fovYRad = camera.fov > 10 ? camera.fov * (Math.PI / 180) : camera.fov;
+      } else if (window.geofs?.api?.viewer?.camera?.frustum?.fov) {
+        // Directe extractie uit de Cesium/3D-engine frustum van GeoFS
+        fovYRad = window.geofs.api.viewer.camera.frustum.fov;
+      }
+
+      // 2. Exacte trigonometrische projectie voor de virtuele brandpuntsafstand
+      const focalLengthPx = (h / 2) / Math.tan(fovYRad / 2);
+      
+      // 3. Bereken pixels per graad op basis van de ware focal length
+      const pixelsPerRad = focalLengthPx;
+      const pixelsPerDeg = pixelsPerRad * (Math.PI / 180);
+      
+      // In een correcte 3D-projectie is de horizontale en verticale schaal gelijk (vierkante pixels)
+      const pixelsPerDegX = pixelsPerDeg;
+
+      // 4. Parallax/Boresight offset: compenseert voor de positie van het virtuele oog 
+      // t.o.v. de neus van de F/A-18 (kan via config fijngekalibreerd worden)
+      const cameraOffsetYDeg = this.config?.cameraOffsetYDeg || 0; 
+      const cameraOffsetPx = cameraOffsetYDeg * pixelsPerDeg;
+
+      return { pixelsPerDeg, pixelsPerDegX, cameraOffsetPx, focalLengthPx };
     }
 
     updateFpvState(lla, ac) {
@@ -281,15 +299,19 @@
     ctx.restore();
   }
 
-  static drawPitchLadder(ctx, camera, pitchDeg, cx, clipCy, symbolCy, pixelsPerDeg, w, h) {
-    const cameraCompY = symbolCy - clipCy;
-    const horizonOffsetY = pitchDeg * pixelsPerDeg + cameraCompY;
+  static drawPitchLadder(ctx, camera, pitchDeg, fpvState, fpvPos, cx, clipCy, symbolCy, pixelsPerDeg, w, h) {
+    // Bepaal het ankerpunt voor de rotatie en centrering: de FPV (indien geldig), anders als fallback de boresight
+    const anchorX = fpvPos ? fpvPos.x : cx;
+    const anchorY = fpvPos ? fpvPos.y : symbolCy;
+    
+    // De absolute vluchthoek (Flight Path Angle / fpaDeg) van de FPV t.o.v. de horizon.
+    // Dit is de neus-pitch + de relatieve elevatie van de FPV.
+    const fpaDeg = (fpvPos && fpvState?.valid) ? (pitchDeg + (fpvState.relElDeg || 0)) : pitchDeg;
 
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-    // Clip to an approximate physical HUD combiner shape (wide, angular),
-    // instead of a small circular clip.
+    // Clip to an approximate physical HUD combiner shape
     ctx.beginPath();
     ctx.moveTo(w * 0.34, h * 0.06);
     ctx.lineTo(w * 0.66, h * 0.06);
@@ -300,18 +322,21 @@
     ctx.closePath();
     ctx.clip();
 
-    // Keep the horizon vertically tied to the real horizon (pitch + camera offset).
-    // Roll only rotates the ladder around that horizon anchor point.
-    ctx.translate(cx, clipCy + horizonOffsetY);
+    // Verplaats de canvas-oorsprong EXACT naar de FPV en roteer rondom dit punt met de rolhoek
+    ctx.translate(anchorX, anchorY);
     ctx.rotate(-camera.roll);
     ctx.strokeStyle = this.DEFAULT_COLOR;
     ctx.lineWidth = 1.5;
 
-    // Horizon line
+    // Artificial Horizon (0 graden lijn)
+    // In ons nieuwe FPV-gerichte coördinatenstelsel is (0,0) de FPV.
+    // De horizon ligt op verticale afstand fpaDeg onder/boven de FPV.
+    const horizonOffsetY = fpaDeg * pixelsPerDeg;
+
     ctx.setLineDash([]);
     ctx.beginPath();
-    ctx.moveTo(-w * 0.56, 0);
-    ctx.lineTo(w * 0.56, 0);
+    ctx.moveTo(-w * 0.56, horizonOffsetY);
+    ctx.lineTo(w * 0.56, horizonOffsetY);
     ctx.stroke();
 
     const TICK_RANGE_DEG = 85;
@@ -331,9 +356,12 @@
 
     for (let deg = 5; deg <= TICK_RANGE_DEG; deg += 5) {
       for (const sign of [-1, 1]) {
-        const tickY = sign * deg * pixelsPerDeg;
-        const isBelow = sign > 0;
-        const tickDir = isBelow ? -1 : 1;
+        const ladderDeg = sign * deg;
+        // De verticale afstand van deze laddertrede t.o.v. de FPV is het verschil tussen FPA en de ladderhoek
+        const tickY = (fpaDeg - ladderDeg) * pixelsPerDeg;
+        
+        const isBelow = ladderDeg < 0; // Negatieve pitch ligt onder de horizon
+        const tickDir = isBelow ? -1 : 1; // "Stubs" aan de uiteinden wijzen altijd richting de horizon
 
         ctx.setLineDash(isBelow ? [6, 4] : []);
         ctx.beginPath();
@@ -365,23 +393,28 @@
     ctx.textBaseline = savedBaseline;
     ctx.setLineDash([]);
     ctx.restore();
-  
   }
 
   computeFpvScreenPosition(camera, cx, cy, pixelsPerDeg, pixelsPerDegX, cameraOffsetPx) {
-    const fpvState = this.fpvState;
-    if (!fpvState.valid) return null;
+    // Als de FPV-state nog niet berekend of ongeldig is, gebruik dan de boresight als fallback
+    if (!this.fpvState || !this.fpvState.valid) {
+      return { x: cx, y: cy - cameraOffsetPx };
+    }
 
-    const boresightY = cy - cameraOffsetPx;
-    const dxBody = -(fpvState.relAzDeg * pixelsPerDegX);
-    const dyBody = -(fpvState.relElDeg * pixelsPerDeg);
-    const cr = Math.cos(-camera.roll);
-    const sr = Math.sin(-camera.roll);
-    const fpvX = cx + (dxBody * cr - dyBody * sr);
-    const fpvY = boresightY + (dxBody * sr + dyBody * cr);
+    // relElDeg: Het verticale hoekverschil tussen waar de neus wijst (boresight) en waar het vliegtuig heen gaat (FPV).
+    // relAzDeg: Het horizontale hoekverschil (zijwind / gieren / sideslip).
+    const relElDeg = this.fpvState.relElDeg || 0;
+    const relAzDeg = this.fpvState.relAzDeg || 0;
 
-    return { x: fpvX, y: fpvY };
-  
+    // Horizontale verschuiving op het canvas
+    const x = cx + (relAzDeg * pixelsPerDegX);
+
+    // Verticale verschuiving: In een 2D-canvas is de Y-as omgekeerd (0 is bovenaan).
+    // Een positieve relatieve elevatie (stijgen t.o.v. boresight) betekent dat de FPV OMHOOG moet (dus Y aftrekken).
+    // We trekken ook de cameraOffsetPx af om de optische parallax te corrigeren.
+    const y = (cy - cameraOffsetPx) - (relElDeg * pixelsPerDeg);
+
+    return { x, y };
   }
 
     static drawFpv(ctx, fpvPos, cx, clipCy, w, h) {
@@ -1065,12 +1098,18 @@
         const { pixelsPerDeg, pixelsPerDegX, cameraOffsetPx } = this.computeHudGeometry(w, h);
 
         this.updateFpvState(ac.llaLocation, ac);
+        
+        // 1. Bereken nu EERST de schermpositie van de FPV
+        const fpvPos = this.computeFpvScreenPosition(camera, cx, cy, pixelsPerDeg, pixelsPerDegX, cameraOffsetPx);
+
         if (hudLevel == 'FULL') {
           F18HudModule.drawBoresight(o, cx, cy, cameraOffsetPx, w, h);
         }
-        F18HudModule.drawPitchLadder(o, camera, pitchDeg, cx, cy, cy - cameraOffsetPx, pixelsPerDeg, w, h);
+        
+        // 2. Geef de FPV-state en positie mee aan de pitch ladder
+        F18HudModule.drawPitchLadder(o, camera, pitchDeg, this.fpvState, fpvPos, cx, cy, cy - cameraOffsetPx, pixelsPerDeg, w, h);
 
-        const fpvPos = this.computeFpvScreenPosition(camera, cx, cy, pixelsPerDeg, pixelsPerDegX, cameraOffsetPx);
+        // 3. Teken de FPV zelf en de daaraan gekoppelde symbolen
         const fpvDrawn = F18HudModule.drawFpv(o, fpvPos, cx, cy, w, h);
         if (hudLevel !== 'MIN') {
           F18HudModule.drawIlsDeviationCues(o, fpvDrawn, helperModule, w, h);
