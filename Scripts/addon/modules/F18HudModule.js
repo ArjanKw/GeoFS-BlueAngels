@@ -189,73 +189,85 @@
     }
 
     computeHudGeometry(w, h, camera) {
-      // 1. Probeer de werkelijke verticale FOV (in radialen) uit GeoFS of de camera te halen.
-      // Standaardwaarde is ~45 graden (0.785398 rad) als fallback.
-      let fovYRad = 0.785398; 
-      
-      if (camera && typeof camera.fov === 'number') {
-        // Sommige engines geven FOV in graden, andere in radialen. Correctie indien > 10:
-        fovYRad = camera.fov > 10 ? camera.fov * (Math.PI / 180) : camera.fov;
-      } else if (window.geofs?.api?.viewer?.camera?.frustum?.fov) {
-        // Directe extractie uit de Cesium/3D-engine frustum van GeoFS
-        fovYRad = window.geofs.api.viewer.camera.frustum.fov;
-      }
+      // 1. De sleutel voor 3D Cockpit HUDs: De verticale kijkhoek van het glas (Combiner FOV).
+      // Een echte F/A-18 HUD beslaat ongeveer 16.5 graden van boven naar beneden op het glas.
+      // -> Ladder te dicht op elkaar? Verlaag dit getal (bijv. naar 14 of 15).
+      // -> Ladder te ver uit elkaar (buiten beeld)? Verhoog dit getal (bijv. naar 18 of 20).
+      const HUD_VERTICAL_FOV_DEG = this.config?.hudFovDeg || 16.5;
 
-      // 2. Exacte trigonometrische projectie voor de virtuele brandpuntsafstand
-      const focalLengthPx = (h / 2) / Math.tan(fovYRad / 2);
-      
-      // 3. Bereken pixels per graad op basis van de ware focal length
-      const pixelsPerRad = focalLengthPx;
-      const pixelsPerDeg = pixelsPerRad * (Math.PI / 180);
-      
-      // In een correcte 3D-projectie is de horizontale en verticale schaal gelijk (vierkante pixels)
-      const pixelsPerDegX = pixelsPerDeg;
+      // 2. Bereken pixels per graad direct op basis van de textuurhoogte en het glazen venster
+      const pixelsPerDeg = h / HUD_VERTICAL_FOV_DEG;
+      const pixelsPerDegX = pixelsPerDeg; // Vierkante pixels op de HUD-textuur
 
-      // 4. Parallax/Boresight offset: compenseert voor de positie van het virtuele oog 
-      // t.o.v. de neus van de F/A-18 (kan via config fijngekalibreerd worden)
+      // 3. Optische parallax / Boresight offset (in graden t.o.v. het midden van de textuur).
+      // Omdat de virtuele piloot net iets boven of onder de verlichte projector kan zitten,
+      // kun je hiermee de hele symbologie verticaal uitlijnen met de buitenwereld.
+      // -> Vlieg je vlak (0 fpm) en staat de 0-horizon van de HUD net te LAAG? Maak dit getal positiever.
+      // -> Staat de 0-horizon net te HOOG? Maak dit getal negatiever (bijv. -1.5).
       const cameraOffsetYDeg = this.config?.cameraOffsetYDeg || 0; 
       const cameraOffsetPx = cameraOffsetYDeg * pixelsPerDeg;
+
+      // Fictieve focal length behouden voor eventuele interne compatibiliteit in de rest van je script
+      const focalLengthPx = (h / 2) / Math.tan((HUD_VERTICAL_FOV_DEG * (Math.PI / 180)) / 2);
 
       return { pixelsPerDeg, pixelsPerDegX, cameraOffsetPx, focalLengthPx };
     }
 
-    updateFpvState(lla, ac) {
-    if (!Array.isArray(lla) || !Number.isFinite(lla[0]) || !Number.isFinite(lla[1]) || !Number.isFinite(lla[2])) {
+    updateFpvState() {
+    // 1. Controleer of Cesium en de camera beschikbaar zijn in GeoFS
+    if (!window.geofs?.api?.viewer?.camera || !window.Cesium) {
       return;
     }
 
-    const fpvState = this.fpvState;
+    const camera = geofs.api.viewer.camera;
+    // Pak de exacte 3D World Coordinates (Cartesian3) van de camera
+    const currLoc = camera.positionWC;
 
-    const lat = lla[0];
-    const lon = lla[1];
-    const alt = lla[2];
-
-    if (fpvState.lastLat != null && fpvState.lastLon != null && fpvState.lastAlt != null) {
-      const latRad = lat * Math.PI / 180;
-      const dNorth = (lat - fpvState.lastLat) * 111320;
-      const dEast = (lon - fpvState.lastLon) * (111320 * Math.cos(latRad));
-      const dUp = alt - fpvState.lastAlt;
-      const horizontal = Math.hypot(dNorth, dEast);
-
-      if (horizontal > 0.01 || Math.abs(dUp) > 0.01) {
-        let trackDeg = Math.atan2(dEast, dNorth) * F18HudModule.RAD_TO_DEG;
-        if (trackDeg < 0) trackDeg += 360;
-        const fpaDeg = Math.atan2(dUp, Math.max(horizontal, 1e-6)) * F18HudModule.RAD_TO_DEG;
-
-        const hdgDeg = (window.geofs?.animation?.values?.heading360 ?? window.geofs?.animation?.values?.heading ?? ac.htr?.[0] ?? 0);
-        const pitchDegNow = -(ac.htr[1] || 0);
-
-        fpvState.relAzDeg = this.dependencies.helperModule?.angleDiffDeg?.(hdgDeg, trackDeg) ?? 0;
-        fpvState.relElDeg = fpaDeg - pitchDegNow;
-        fpvState.valid = true;
-      }
+    if (!this.lastCamLoc) {
+      this.lastCamLoc = Cesium.Cartesian3.clone(currLoc);
+      this.fpvState = { valid: false, relAzDeg: 0, relElDeg: 0 };
+      return;
     }
 
-    fpvState.lastLat = lat;
-    fpvState.lastLon = lon;
-    fpvState.lastAlt = alt;
-  
+    // 2. Bereken de 3D-verplaatsing (delta) in de wereldruimte (ECEF)
+    const deltaLoc = Cesium.Cartesian3.subtract(currLoc, this.lastCamLoc, new Cesium.Cartesian3());
+    this.lastCamLoc = Cesium.Cartesian3.clone(currLoc);
+
+    // Als het vliegtuig stilstaat, behouden we de laatste staat
+    const speedSq = Cesium.Cartesian3.magnitudeSquared(deltaLoc);
+    if (speedSq < 1e-7) {
+      return;
     }
+
+    // 3. Transformeer de 3D vector van Wereldruimte naar Camera-lokale ruimte via de Cesium ViewMatrix
+    // Dit compenseert automatisch voor camerapositie (stoelhoogte, head-shift, kijkhoek)
+    const viewMatrix = camera.viewMatrix;
+    const deltaCam = Cesium.Matrix4.multiplyByPointAsVector(viewMatrix, deltaLoc, new Cesium.Cartesian3());
+
+    // In Cesium Camera Space:
+    // deltaCam.x = rechts (+) / links (-)
+    // deltaCam.y = omhoog (+) / omlaag (-)
+    // deltaCam.z = naar achteren (+) / naar voren (-) -> Cesium gebruikt -Z als vooruit
+    const forward = -deltaCam.z; 
+    const right = deltaCam.x;
+    const up = deltaCam.y;
+
+    // Alleen geldig als we vooruit bewegen
+    if (forward <= 0) {
+      this.fpvState.valid = false;
+      return;
+    }
+
+    // 4. Bereken de exacte hoekafwijking in graden t.o.v. de kijklijn van de camera
+    const relAzRad = Math.atan2(right, forward);
+    const relElRad = Math.atan2(up, forward);
+
+    this.fpvState = {
+      valid: true,
+      relAzDeg: relAzRad * (180 / Math.PI),
+      relElDeg: relElRad * (180 / Math.PI)
+    };
+  }
 
     static drawAoaText(ctx, w, h, aoa) {
     const previousAlign = ctx.textAlign;
@@ -396,28 +408,34 @@
   }
 
   computeFpvScreenPosition(camera, cx, cy, pixelsPerDeg, pixelsPerDegX, cameraOffsetPx) {
-    // Als de FPV-state nog niet berekend of ongeldig is, gebruik dan de boresight als fallback
     if (!this.fpvState || !this.fpvState.valid) {
-      return { x: cx, y: cy - cameraOffsetPx };
+      return { x: cx, y: cy - cameraOffsetPx, clamped: false };
     }
 
-    // relElDeg: Het verticale hoekverschil tussen waar de neus wijst (boresight) en waar het vliegtuig heen gaat (FPV).
-    // relAzDeg: Het horizontale hoekverschil (zijwind / gieren / sideslip).
-    const relElDeg = this.fpvState.relElDeg || 0;
-    const relAzDeg = this.fpvState.relAzDeg || 0;
+    // Bereken ongeklemde X en Y op de HUD canvas
+    let x = cx + (this.fpvState.relAzDeg * pixelsPerDegX);
+    let y = (cy - cameraOffsetPx) - (this.fpvState.relElDeg * pixelsPerDeg);
 
-    // Horizontale verschuiving op het canvas
-    const x = cx + (relAzDeg * pixelsPerDegX);
+    // Marges van de fysieke HUD-combiner glasranden (in pixels vanaf het midden)
+    const maxMarginX = cx * 0.75; 
+    const maxMarginY = cy * 0.80; 
 
-    // Verticale verschuiving: In een 2D-canvas is de Y-as omgekeerd (0 is bovenaan).
-    // Een positieve relatieve elevatie (stijgen t.o.v. boresight) betekent dat de FPV OMHOOG moet (dus Y aftrekken).
-    // We trekken ook de cameraOffsetPx af om de optische parallax te corrigeren.
-    const y = (cy - cameraOffsetPx) - (relElDeg * pixelsPerDeg);
+    let clamped = false;
 
-    return { x, y };
+    // Klem de FPV binnen de grenzen van de HUD
+    if (Math.abs(x - cx) > maxMarginX) {
+      x = cx + Math.sign(x - cx) * maxMarginX;
+      clamped = true;
+    }
+    if (Math.abs(y - (cy - cameraOffsetPx)) > maxMarginY) {
+      y = (cy - cameraOffsetPx) + Math.sign(y - (cy - cameraOffsetPx)) * maxMarginY;
+      clamped = true;
+    }
+
+    return { x, y, clamped };
   }
 
-    static drawFpv(ctx, fpvPos, cx, clipCy, w, h) {
+  static drawFpv(ctx, fpvPos, cx, clipCy, w, h) {
     if (!fpvPos) return null;
     const fpvX = fpvPos.x;
     const fpvY = fpvPos.y;
@@ -1095,7 +1113,7 @@
         const cy = h / 2;
         const pitchDeg = -(ac.htr[1] || 0);
 
-        const { pixelsPerDeg, pixelsPerDegX, cameraOffsetPx } = this.computeHudGeometry(w, h);
+        const { pixelsPerDeg, pixelsPerDegX, cameraOffsetPx } = this.computeHudGeometry(w, h, camera);
 
         this.updateFpvState(ac.llaLocation, ac);
         
