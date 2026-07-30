@@ -589,6 +589,18 @@
                     "credits": "GeoFS Blue Angels"
                 }
             ]
+        },
+        "2420": {
+            "name": "ATR 72-600",
+            "liveries": [
+                {
+                    "name": "Blue Angels - Little Albert",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/ATR_72-600/v2/atr-72-600-blue-angels.jpg"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                }
+            ]
         }
     }
 }
