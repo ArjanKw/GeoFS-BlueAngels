@@ -600,6 +600,24 @@
                     ],
                     "credits": "GeoFS Blue Angels"
                 }
+            ],
+            "index": [
+                0,
+                1,
+                2,
+                5
+            ],
+            "parts": [
+                0,
+                0,
+                0,
+                0
+            ],
+            "mp": [
+                {
+                    "modelIndex": 0,
+                    "textureIndex": 0
+                }
             ]
         }
     }
