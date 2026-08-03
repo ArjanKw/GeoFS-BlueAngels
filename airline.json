@@ -626,11 +626,11 @@
                 {
                     "name": "Blue Angels - Fast Albert",
                     "texture": [
-                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/Concorde/v2/concorde-blue-angels.jpg"
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/Concorde/concorde-blue-angels.jpg"
                     ],
                     "credits": "Fictional livery - GeoFS Blue Angels"
                 }
-            ]
+            ]            
         }
     }
 }
