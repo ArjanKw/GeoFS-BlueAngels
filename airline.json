@@ -631,6 +631,19 @@
                     "credits": "Fictional livery - GeoFS Blue Angels"
                 }
             ]            
+        },
+        "14": {
+            "name": "Colomban MC-15 Cri-cri",
+            "liveries": [
+                {
+                    "name": "Blue Angels - Tiny Bertie",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/CRI/Tiny_bertie.jpg",
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/CRI/Tiny_bertie_interior.jpg"
+                    ],
+                    "credits": "CREATED BY 'PH-HWR (Rick)' - Fictional livery"
+                }
+            ]            
         }
     }
 }
