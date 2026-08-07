@@ -160,6 +160,96 @@
                         "https://www.geo-fs.com/models/aircraft/premium/pilatus/propblur.png"
                     ],
                     "credits": "GeoFS Blue Angels"
+                },
+                {
+                    "name": "Jupiter Aerobatic Team",
+                    "texture": [
+                        "https://www.geo-fs.com/models/aircraft/premium/pilatus/normal.jpg",
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/Pilatus/specular_BA.jpg",
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/Pilatus/JAT.png",
+                        "https://www.geo-fs.com/models/aircraft/premium/pilatus/propblur.png"
+                    ],
+                    "credits": "Merpati"
+                },
+                {
+                    "name": "Jupiter Aerobatic Team - 1",
+                    "texture": [
+                        "https://www.geo-fs.com/models/aircraft/premium/pilatus/normal.jpg",
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/Pilatus/specular_BA.jpg",
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/Pilatus/JAT_1.png",
+                        "https://www.geo-fs.com/models/aircraft/premium/pilatus/propblur.png"
+                    ],
+                    "credits": "Merpati"
+                },
+                {
+                    "name": "Jupiter Aerobatic Team - 2",
+                    "texture": [
+                        "https://www.geo-fs.com/models/aircraft/premium/pilatus/normal.jpg",
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/Pilatus/specular_BA.jpg",
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/Pilatus/JAT_2.png",
+                        "https://www.geo-fs.com/models/aircraft/premium/pilatus/propblur.png"
+                    ],
+                    "credits": "Merpati"
+                },
+                {
+                    "name": "Jupiter Aerobatic Team - 3",
+                    "texture": [
+                        "https://www.geo-fs.com/models/aircraft/premium/pilatus/normal.jpg",
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/Pilatus/specular_BA.jpg",
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/Pilatus/JAT_3.png",
+                        "https://www.geo-fs.com/models/aircraft/premium/pilatus/propblur.png"
+                    ],
+                    "credits": "Merpati"
+                },
+                {
+                    "name": "Jupiter Aerobatic Team - 4",
+                    "texture": [
+                        "https://www.geo-fs.com/models/aircraft/premium/pilatus/normal.jpg",
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/Pilatus/specular_BA.jpg",
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/Pilatus/JAT_4.png",
+                        "https://www.geo-fs.com/models/aircraft/premium/pilatus/propblur.png"
+                    ],
+                    "credits": "Merpati"
+                },
+                {
+                    "name": "Jupiter Aerobatic Team - 5",
+                    "texture": [
+                        "https://www.geo-fs.com/models/aircraft/premium/pilatus/normal.jpg",
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/Pilatus/specular_BA.jpg",
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/Pilatus/JAT_5.png",
+                        "https://www.geo-fs.com/models/aircraft/premium/pilatus/propblur.png"
+                    ],
+                    "credits": "Merpati"
+                },
+                {
+                    "name": "Jupiter Aerobatic Team - 6",
+                    "texture": [
+                        "https://www.geo-fs.com/models/aircraft/premium/pilatus/normal.jpg",
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/Pilatus/specular_BA.jpg",
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/Pilatus/JAT_6.png",
+                        "https://www.geo-fs.com/models/aircraft/premium/pilatus/propblur.png"
+                    ],
+                    "credits": "Merpati"
+                },
+                {
+                    "name": "Jupiter Aerobatic Team - 7",
+                    "texture": [
+                        "https://www.geo-fs.com/models/aircraft/premium/pilatus/normal.jpg",
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/Pilatus/specular_BA.jpg",
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/Pilatus/JAT_7.png",
+                        "https://www.geo-fs.com/models/aircraft/premium/pilatus/propblur.png"
+                    ],
+                    "credits": "Merpati"
+                },
+                {
+                    "name": "Jupiter Aerobatic Team - 8",
+                    "texture": [
+                        "https://www.geo-fs.com/models/aircraft/premium/pilatus/normal.jpg",
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/Pilatus/specular_BA.jpg",
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/Pilatus/JAT_8.png",
+                        "https://www.geo-fs.com/models/aircraft/premium/pilatus/propblur.png"
+                    ],
+                    "credits": "Merpati"
                 }
             ]
         },
