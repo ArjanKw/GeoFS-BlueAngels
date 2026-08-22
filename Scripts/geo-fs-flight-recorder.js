@@ -1173,10 +1173,14 @@
     return current;
   }
 
-  function getLiverySelectorAircraftEntry(track) {
+  function getLiverySelectorAircraftEntry(track, liveryId) {
     const ls = window.LiverySelector;
+    const ref = liveryId ?? track?.liveryEvents?.[0]?.id ?? null;
+    const acPath = String((ref && typeof ref === 'object' ? ref.ac_path : '') || '');
     const acId = String(track?.aircraftId || '');
-    return ls?.liveryobj?.aircrafts?.[acId] || null;
+    return ls?.liveryobj?.aircrafts?.[acPath]
+        || ls?.liveryobj?.aircrafts?.[acId]
+        || null;
   }
 
   function makeUniqueGhostModelUrl(track) {
@@ -1187,10 +1191,23 @@
     return `${base}${sep}frghost=${token}`;
   }
 
+  function isVaLiveryRef(liveryId) {
+    return !!(liveryId && typeof liveryId === 'object' && typeof liveryId.url === 'string' && liveryId.url.trim());
+  }
+
+  function extractLiveryIdxNumber(liveryId) {
+    if (liveryId != null && typeof liveryId === 'object') {
+      const n = Number(liveryId.idx);
+      return Number.isFinite(n) ? n : NaN;
+    }
+    return Number(liveryId);
+  }
+
   async function getVALivery(track, liveryRef) {
     const url = String(liveryRef?.url || '').trim();
-    const idx = Number(liveryRef?.idx);
-    if (!url || !Number.isFinite(idx) || idx < 0) return null;
+    const idxRaw = Number(liveryRef?.idx);
+    if (!url || !Number.isFinite(idxRaw) || idxRaw < 0) return null;
+    const idx = idxRaw >= LIVERY_ID_OFFSET ? idxRaw - LIVERY_ID_OFFSET : idxRaw;
 
     const cache = track?._livery?.vaCache || Object.create(null);
     if (!cache[url]) {
@@ -1199,7 +1216,8 @@
     }
     const airline = await cache[url];
     const acId = String(track?.aircraftId || '');
-    const ac = airline?.aircrafts?.[acId];
+    const ac_path = String(liveryRef?.ac_path || '');
+    const ac = airline?.aircrafts?.[ac_path] || airline?.aircrafts?.[acId];
     const livery = ac?.liveries?.[idx];
     if (!livery) return null;
     return { livery, source: airline };
@@ -1280,9 +1298,10 @@
   }
 
   function applyGhostLiverySnapshot(track, snapshot, applyRunId = 0) {
-    const textures = Array.isArray(snapshot?.textures) ? snapshot.textures : [];
-    if (!textures.length) return false;
-    if (!track?._ghost?._model?.ready) return false;
+  const textures = Array.isArray(snapshot?.textures) ? snapshot.textures : [];
+  if (!textures.length) return false;
+  if (!track?._ghost?._model?.ready) return false;
+
 
     let applied = false;
     for (const item of textures) {
@@ -1307,7 +1326,7 @@
     }
   }
 
-  async function applyTrackLivery(track, liveryId, snapshot) {
+async function applyTrackLivery(track, liveryId, snapshot) {
     const reqSig = liverySig(liveryId);
     const runId = track?._livery
       ? (track._livery.applyRunId = Number(track._livery.applyRunId || 0) + 1)
@@ -1322,17 +1341,18 @@
       return true;
     }
 
-    const entry = getLiverySelectorAircraftEntry(track);
+    const entry = getLiverySelectorAircraftEntry(track, liveryId);
     if (!entry) {
       return false;
     }
+    console.log(entry);
 
     let livery = null;
-    if (typeof liveryId === 'object' && liveryId) {
+    if (isVaLiveryRef(liveryId)) {
       const va = await getVALivery(track, liveryId);
       livery = va?.livery || null;
     } else {
-      const idNum = Number(liveryId);
+      const idNum = extractLiveryIdxNumber(liveryId);
       if (!Number.isFinite(idNum)) {
         return false;
       }
@@ -1342,6 +1362,7 @@
     if (!livery) {
       return false;
     }
+    console.log(livery);
 
     const indices = Array.isArray(entry.index) ? entry.index : [];
     const textures = Array.isArray(livery.texture) ? livery.texture : [];
@@ -2014,55 +2035,43 @@
   }
 
   async function applyOwnAircraftResolvedLivery(track, liveryId) {
-    const model = geofs?.aircraft?.instance?.object3d?.model?._model;
-    if (!model) return false;
+    const ls = window.LiverySelector;
+    if (!ls || typeof ls.loadLivery !== 'function') return false;
+    if (!geofs?.aircraft?.instance) return false;
 
-    const entry = getLiverySelectorAircraftEntry(track);
+    const entry = getLiverySelectorAircraftEntry(track, liveryId);
     if (!entry) return false;
 
     let livery = null;
-    if (typeof liveryId === 'object' && liveryId) {
+    if (isVaLiveryRef(liveryId)) {
       const va = await getVALivery(track, liveryId);
       livery = va?.livery || null;
     } else {
-      const idNum = Number(liveryId);
+      const idNum = extractLiveryIdxNumber(liveryId);
       if (!Number.isFinite(idNum)) return false;
       const idx = idNum >= LIVERY_ID_OFFSET ? idNum - LIVERY_ID_OFFSET : idNum;
       livery = entry?.liveries?.[idx] || null;
     }
     if (!livery) return false;
 
-    const indices = Array.isArray(entry.index) ? entry.index : [];
-    const textures = Array.isArray(livery.texture) ? livery.texture : [];
-    const mats = livery.materials || {};
-    let applied = false;
-
-    for (let i = 0; i < textures.length; i++) {
-      const tx = textures[i];
-      if (tx && typeof tx === 'object' && tx.material != null) {
-        const mat = mats?.[tx.material];
-        if (mat) {
-          applyGhostMaterial(model, mat);
-          applied = true;
-        }
-        continue;
-      }
-      if (typeof tx !== 'string' || !tx) continue;
-      const modelIndex = Number(indices[i]);
-      if (!Number.isFinite(modelIndex)) continue;
-      try {
-        geofs?.api?.changeModelTexture?.(model, tx, { index: modelIndex });
-        applied = true;
-      } catch {
-        try {
-          geofs?.api?.changeModelTexture?.(model, tx, modelIndex);
-          applied = true;
-        } catch { }
-      }
+    try {
+      ls.loadLivery(livery.texture, entry.index, entry.parts, livery.materials);
+      return true;
+    } catch {
+      return false;
     }
-
-    return applied;
   }
+
+  function captureLiverySnapshotWhenReady(tr, ac, attempt = 0) {
+  if (!tr?._rec?.recording) return;
+  const snap = readCurrentLiverySnapshot(ac);
+  if (snap) {
+    if (tr.liveryEvents[0]) tr.liveryEvents[0].snapshot = snap;
+    return;
+  }
+  if (attempt >= 100) return; // ~5s now, to cover a slow VA fetch
+  setTimeout(() => captureLiverySnapshotWhenReady(tr, ac, attempt + 1), 50);
+}
 
   async function applyOwnAircraftLiveryFromTrack(track, idx) {
     const snap = liverySnapshotAtIndex(track, idx);
@@ -2075,10 +2084,8 @@
 
     try {
       geofs.aircraft.instance.liveryId = liv;
-      return true;
-    } catch {
-      return false;
-    }
+    } catch { /* ignore */ }
+    return false;
   }
 
   function syncOwnAircraftTypeAndLiveryForTrack(track, idx) {
@@ -2121,18 +2128,56 @@
 
   function switchTrackToGhostMode(track, options = {}) {
     if (!track) return;
+
     const syncOwnAircraft = options.syncOwnAircraft !== false;
     const last = Math.max(0, (track.lla?.length || 1) - 1);
-    const idx = clamp(Math.floor(track?._play?.idx || 0), 0, last);
+    const idx = clamp(
+        Math.floor(track?._play?.idx || 0),
+        0,
+        last
+    );
+
     const upNow = getTrackGearUp(track, idx);
-    if (syncOwnAircraft) applyOwnAircraftGearState(upNow);
+
+    if (syncOwnAircraft) {
+        applyOwnAircraftGearState(upNow);
+    }
+
     setTrackMode(track, 'ghost');
     track._pilotNextSyncAt = 0;
     track._pilotOwnLiveryKey = '';
-    if (activePilotTrackId === track.id) activePilotTrackId = null;
+
+    if (activePilotTrackId === track.id) {
+        activePilotTrackId = null;
+    }
+
+    // Recreate the ghost.
     restoreGhostVisualState(track, idx);
-    applyCurrentLiveryForTrack(track);
-  }
+
+    // Force a completely fresh livery application.
+    if (track._livery) {
+        track._livery.applying = false;
+        track._livery.appliedSig = null;
+        track._livery.resetSig = null;
+        track._livery.pendingId = null;
+        track._livery.pendingSnapshot = null;
+        track._livery.pendingSig = null;
+    }
+    const liv = liveryAtIndex(track, idx);
+    const snap = liverySnapshotAtIndex(track, idx);
+    const sig = liverySig(liv);
+
+    if (liv != null || snap) {
+        if (track._livery) {
+            track._livery.pendingId = cloneLiveryId(liv);
+            track._livery.pendingSnapshot =
+                snap ? JSON.parse(JSON.stringify(snap)) : null;
+            track._livery.pendingSig = sig;
+        }
+
+        applyTrackLiveryWhenReady(track, liv, snap, sig);
+    }
+}
 
   function switchTrackToPilotMode(track) {
     if (!track) return;
