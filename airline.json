@@ -253,6 +253,27 @@
                 }
             ]
         },
+        "6": {
+            "name": "de Havilland Canada DHC6 Twin Otter",
+            "liveries": [
+                {
+                    "name": "Blue Angels - Albert the Otter",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/DHC-6/DHC-6-main.jpg",
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/DHC-6/DHC-6-left.jpg",
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/DHC-6/DHC-6-bottom.jpg",
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/DHC-6/DHC-6-right.jpg"
+                    ],
+                    "credits": "CREATED BY 'PH-HWR (Rick)' - Fictional livery"
+                }
+            ],
+            "labels": [
+                "Main Texture",
+                "Texture Left",
+                "Texture Bottom",
+                "Texture Right"
+            ]
+        },
         "16": {
             "name": "Douglas DC-3",
             "index": [
