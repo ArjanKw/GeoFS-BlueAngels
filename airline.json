@@ -253,6 +253,36 @@
                 }
             ]
         },
+        "16": {
+            "name": "Douglas DC-3",
+            "index": [
+                1,
+                3,
+                4
+            ],
+            "parts": [
+                0,
+                0,
+                0
+            ],
+            "mp": [
+                {
+                    "modelIndex": 1,
+                    "textureIndex": 2
+                }
+            ],
+            "liveries": [
+                {
+                    "name": "Blue Angels - Antique Albert",
+                    "texture": [
+                        "/models/aircraft/premium/dc3/normal.jpg",
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/DC3/dc3-ba.png",
+                        "https://cdn.jsdelivr.net/gh/kolos26/GEOFS-LiverySelector@main/liveries/douglas_dc3/usaf.webp"
+                    ],
+                    "credits": "CREATED BY 'PH-HWR (Rick)' - Fictional livery"
+                }
+            ]
+        },
         "27": {
             "name": "McDonell Douglas - Boeing F/A-18F Super Hornet",
             "liveries": [
