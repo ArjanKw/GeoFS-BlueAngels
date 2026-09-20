@@ -285,6 +285,13 @@
                     "credits": "GeoFS Blue Angels"
                 },
                 {
+                    "name": "Blue Angels #2 - Sonic",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/F18/Blue-Angels-2-Sonic.png"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
                     "name": "Blue Angels #2 - LJ-Walch",
                     "texture": [
                         "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/F18/Blue-Angels-2-LJ-Walch.png"
@@ -295,13 +302,6 @@
                     "name": "Blue Angels #2 - Natrium",
                     "texture": [
                         "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/F18/Blue-Angels-2-Natrium.png"
-                    ],
-                    "credits": "GeoFS Blue Angels"
-                },
-                {
-                    "name": "Blue Angels #2",
-                    "texture": [
-                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/F18/Blue-Angels-2.png"
                     ],
                     "credits": "GeoFS Blue Angels"
                 },
