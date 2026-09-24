@@ -441,6 +441,13 @@
                     "credits": "GeoFS Blue Angels"
                 },
                 {
+                    "name": "Blue Angels 1 Year Anniversary - Sonic & Natrium",
+                    "texture": [
+                        "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/F18/Blue-Angels-1-year-anniversary-Sonic-Natrium.png"
+                    ],
+                    "credits": "GeoFS Blue Angels"
+                },
+                {
                     "name": "Blue Angels 1 Year Anniversary - LJ-Walch",
                     "texture": [
                         "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Images/F18/Blue-Angels-1-year-anniversary-lj-walch.png"
