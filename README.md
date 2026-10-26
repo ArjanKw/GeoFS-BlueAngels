@@ -44,16 +44,12 @@ This script improves the F-18 in many ways. It add's a totally reworked F-18 HUD
 ![F-18 add-on](Images/scripts/f-18-addon.png)
 
 ## F-18 v2.0.0
-- [Add this readable script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f18-addon.user.full.js) to Tampermonkey
+- [Add this readable script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f18-addon.user.js) to Tampermonkey
 - Or [add this minified version](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f18-addon.user.min.js).
 
 ## F-15 v2.0.0
-- [Add this script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f15-addon.user.full.js) to Tampermonkey
+- [Add this script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f15-addon.user.js) to Tampermonkey
 - Or [add this minified version](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f15-addon.user.min.js).
-
-## Older version (F-18)
-Having problems with our v2.0.0? Add v1.7.0 stable.
-Installation (v1.7.0 stable): [geo-fs-f18-mod.js](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/geo-fs-f18-mod.js).
 
 ## Mission Planner
 Install [the mission planner](https://github.com/ArjanKw/GeoFS-BlueAngels/raw/refs/heads/main/Scripts/geo-fs-mission-planner.user.js) to create a mission and share it with your aircraft.
@@ -64,7 +60,7 @@ Create a mission by opening the Navigation Panel and clicking on the "Mission Pl
 ## Flight recorder
 This addon allows you to record your flight and play it back while recording a new flight. This way you can record formation flights and practise formation flying.
 
-Installation: [add this script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/geo-fs-flight-recorder.js) to Tampermonkey, or execute it in Developer Console.
+Installation: [add this script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/geo-fs-flight-recorder.user.js) to Tampermonkey, or execute it in Developer Console.
 
 Use it by clicking the REC button in the bottom left, opening this panel:
 
