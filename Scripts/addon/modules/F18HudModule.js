@@ -1,144 +1,274 @@
-﻿class F18HudProjector {
-    
-    /**
-     * Zet een 3D vector vanuit de camera om naar 2D pixels op het scherm.
-     * Dit gebruikt de engine's eigen matrix, wat de HUD gecollimeerd maakt (vastgepind in de wereld).
-     */
-    static projectAnglesToScreen(scene, cameraPos, trackDeg, pitchDeg, lateralOffsetDeg = 0) {
-        const RAD = Math.PI / 180;
-        const h = trackDeg * RAD;
-        const p = pitchDeg * RAD;
-        const w = lateralOffsetDeg * RAD;
+﻿/**
+ * F18HudMath
+ * ============================================================================
+ * Zuivere, van canvas/DOM losgekoppelde 3D-wiskunde voor een fysiek correcte,
+ * gecollimeerde F/A-18 HUD.
+ *
+ * HET PROBLEEM (parallax op een schuin stuk HUD-glas)
+ * ----------------------------------------------------------------------------
+ * De HUD-symbologie (FPV, artificial horizon, pitch ladder) wordt in dit
+ * project getekend op een <canvas>-textuur die vervolgens door de 3D-engine
+ * op een fysiek vlak (het HUD-glas) in de cockpit wordt geplakt. Dat glas
+ * staat NIET haaks op de piloot: de bovenkant staat dichter bij de piloot dan
+ * de onderkant (een schuin, "gekanteld" vlak, net als een echte HUD-combiner).
+ *
+ * Een echte HUD is optisch gecollimeerd: het beeld op het glas lijkt op
+ * oneindige afstand te staan. Dat betekent dat de KIJKRICHTING van de piloot
+ * (rondkijken, omhoog/omlaag/links/rechts) de positie van de symbolen op het
+ * glas niet mag veranderen. Wat WEL van invloed is, is een verplaatsing van
+ * het oogpunt zelf (het hoofd naar links/rechts/omhoog/omlaag/naar-voren
+ * bewegen): omdat het glas dichtbij is en het "doel" (de richting naar de FPV)
+ * oneindig ver weg is, verschuift de plek op het glas waar je door moet kijken
+ * om diezelfde richting te zien - dat is klassieke parallax.
+ *
+ * DE OPLOSSING
+ * ----------------------------------------------------------------------------
+ * 1. Elke symboolrichting (FPV, horizon, pitch-ladder-sport) wordt berekend
+ *    als een richting in de ware wereld (East-North-Up), volledig onafhankelijk
+ *    van de camera: de FPV-richting volgt puur uit de vlieggegevens (track,
+ *    climbAngle), en elke pitch-ladder-sport is per definitie een "aarde-
+ *    horizontale" richting (elevatie = vaste waarde, bijv. 5,10,15 graden),
+ *    ongeacht de houding van het vliegtuig. Dat garandeert dat de horizon en
+ *    de ladder ALTIJD synchroon lopen met de echte, ware horizon.
+ * 2. Die wereldrichting wordt omgezet naar het vliegtuig-lichaamsassenstelsel
+ *    (rechts/voor/boven, vastgezet aan de romp) via de actuele koers, pitch en
+ *    slaghoek (roll/bank) van het vliegtuig. Dit is de enige stap waar de
+ *    houding van het toestel in de berekening komt, en dit is precies wat de
+ *    pitch ladder en de FPV mee laat "rollen" met een bankende bocht, terwijl
+ *    ze onderling relatief gepositioneerd blijven (de ladder blijft om de FPV
+ *    heen roteren, zoals gevraagd).
+ * 3. Vanuit het (eventueel door hoofdbeweging verschoven) oogpunt wordt een
+ *    lichtstraal in die lichaamsrichting getekend en met het fysieke,
+ *    gekantelde HUD-glasvlak gesneden (rechte-vlak-snijding). Dat
+ *    snijpunt - uitgedrukt in glaslokale meters - is de plek waar het symbool
+ *    op de HUD-textuur moet komen. Omdat dit een centrale (perspectivische)
+ *    projectie is van rechte 3D-lijnen door één vast oogpunt, blijven rechte
+ *    lijnen in de wereld (zoals een pitch-ladder-sport) altijd rechte lijnen
+ *    op het glas - een kernstelling uit de projectieve meetkunde.
+ *
+ * Omdat kijkrichting (rondkijken) hier bewust NERGENS in de berekening
+ * voorkomt, en alleen de oogpositie (hoofdverplaatsing) meetelt, is exact
+ * voldaan aan de eis: rondkijken verandert de positie van FPV/horizon op de
+ * HUD niet; alleen het echte oogpunt verplaatsen (parallax) doet dat.
+ *
+ * Definitie-check: als climbAngle = 0 (de FPV staat op de 0°-elevatielijn,
+ * d.w.z. de artificial horizon), dan is de verticale snelheid per definitie 0.
+ * Dat volgt direct uit stap 1 hierboven: de artificial horizon IS de sport bij
+ * elevatie 0, en de FPV staat per definitie bij elevatie = climbAngle.
+ */
+class F18HudMath {
+    static DEG_TO_RAD = Math.PI / 180;
 
-        // 1. Bereken de centrum-vector (bijv. de FPV of het midden van een pitch-lijn)
-        const cosP = Math.cos(p);
-        const eCenter = Math.sin(h) * cosP;
-        const nCenter = Math.cos(h) * cosP;
-        const uCenter = Math.sin(p);
+    static degToRad(deg) {
+        return deg * F18HudMath.DEG_TO_RAD;
+    }
 
-        let finalVec;
-        
-        if (lateralOffsetDeg === 0) {
-            finalVec = new Cesium.Cartesian3(eCenter, nCenter, uCenter);
-        } else {
-            // 2. Bereken de haakse vector voor de lijnen van de Pitch Ladder
-            // Zorgt ervoor dat de lijn ALTIJD parallel is aan de ware aarde-horizon
-            const eRight = Math.cos(h);
-            const nRight = -Math.sin(h);
-            const uRight = 0;
+    // Wereld (East-North-Up) eenheidsvector voor een gegeven kompaskoers (azimuth)
+    // en elevatiehoek (graden boven de ware horizon).
+    static enuFromAzEl(azDeg, elDeg) {
+        const az = F18HudMath.degToRad(azDeg);
+        const el = F18HudMath.degToRad(elDeg);
+        const cosEl = Math.cos(el);
+        return {
+            e: Math.sin(az) * cosEl,
+            n: Math.cos(az) * cosEl,
+            u: Math.sin(el)
+        };
+    }
 
-            const tanW = Math.tan(w);
-            finalVec = new Cesium.Cartesian3(
-                eCenter + (eRight * tanW),
-                nCenter + (nRight * tanW),
-                uCenter + (uRight * tanW)
-            );
-        }
+    // Horizontale eenheidsvector die 90° rechtsom (naar rechts) van azDeg ligt.
+    static horizontalRight(azDeg) {
+        const az = F18HudMath.degToRad(azDeg);
+        return { e: Math.cos(az), n: -Math.sin(az), u: 0 };
+    }
 
-        // Normaliseer en schaal naar 'oneindig' (100km ver)
-        Cesium.Cartesian3.normalize(finalVec, finalVec);
-        
-        // 3. Transformeer van lokaal (East-North-Up) naar Wereld (WGS84 ECEF)
-        const enuMatrix = Cesium.Transforms.eastNorthUpToFixedFrame(cameraPos);
-        const worldDir = new Cesium.Cartesian3();
-        Cesium.Matrix4.multiplyByPointAsVector(enuMatrix, finalVec, worldDir);
-
-        const targetPoint = new Cesium.Cartesian3();
-        Cesium.Cartesian3.multiplyByScalar(worldDir, 100000.0, targetPoint);
-        Cesium.Cartesian3.add(cameraPos, targetPoint, targetPoint);
-
-        // 4. Projecteer naar 2D scherm pixels via Cesium
-        const screenPos = Cesium.SceneTransforms.wgs84ToWindowCoordinates(scene, targetPoint);
-        return screenPos; // Geeft {x, y} terug, of undefined als het achter de camera ligt
+    static normalizeEnu(v) {
+        const len = Math.hypot(v.e, v.n, v.u) || 1;
+        return { e: v.e / len, n: v.n / len, u: v.u / len };
     }
 
     /**
-     * Hoofd-render functie. Aanroepen vanuit je requestAnimationFrame loop.
+     * Richting van een punt op een "aarde-horizontale" pitch-ladder-sport: vaste
+     * ware elevatie (elDeg), gecentreerd op azDeg (de FPV-koers), met een
+     * laterale zwaai (lateralDeg) via een tangens (gnomonische projectie).
+     *
+     * Omdat dit de centrale projectie is van een echte rechte 3D-lijn (voor elke
+     * lateralDeg ligt het punt center + tan(lateralDeg) * right op één rechte
+     * lijn), blijft de sport na projectie op het HUD-glas altijd een rechte
+     * lijn - ook als het glas schuin staat en ook als het toestel bankt.
      */
-    static renderCollimatedHUD(ctx, canvasWidth, canvasHeight) {
-        const viewer = window.geofs?.api?.viewer;
-        const anim = window.geofs?.animation?.values;
-        if (!viewer || !anim) return;
-
-        const scene = viewer.scene;
-        // Gebruik de EXACTE camera positie voor perfecte parallax (Translation)
-        const cameraPos = scene.camera.positionWC; 
-
-        // Haal vlucht data op. FPV track en climbAngle bepalen exact waar je naartoe gaat
-        const track = anim.track ?? anim.heading360 ?? 0;
-        const climbAngle = anim.climbAngle ?? 0;
-
-        ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-        ctx.strokeStyle = "#00ff88";
-        ctx.lineWidth = 1.5;
-
-        // --- 1. TEKEN DE PITCH LADDER ---
-        // Deze roteert om de FPV-as (track) heen, en loopt van -90 tot +90
-        const ladderHalfWidth = 3.5; // Breedte in graden
-        const ladderGap = 1.2;       // Ruimte rondom FPV
-
-        for (let p = -90; p <= 90; p += 5) {
-            // Sla lijnen over die ver buiten beeld zijn
-            if (Math.abs(p - anim.pitch) > 40) continue;
-
-            // Projecteer linker en rechter punten in 3D
-            const pL_outer = this.projectAnglesToScreen(scene, cameraPos, track, p, -ladderHalfWidth);
-            const pL_inner = this.projectAnglesToScreen(scene, cameraPos, track, p, -ladderGap);
-            const pR_inner = this.projectAnglesToScreen(scene, cameraPos, track, p, ladderGap);
-            const pR_outer = this.projectAnglesToScreen(scene, cameraPos, track, p, ladderHalfWidth);
-
-            if (!pL_outer || !pR_outer) continue;
-
-            ctx.beginPath();
-            if (p === 0) {
-                // Artificial Horizon (breder, doorgetrokken lijn, ononderbroken of klein gat)
-                const horizonL = this.projectAnglesToScreen(scene, cameraPos, track, 0, -12);
-                const horizonR = this.projectAnglesToScreen(scene, cameraPos, track, 0, 12);
-                if (horizonL && horizonR) {
-                    ctx.setLineDash([]);
-                    ctx.moveTo(horizonL.x, horizonL.y);
-                    ctx.lineTo(horizonR.x, horizonR.y);
-                    ctx.stroke();
-                }
-            } else if (p > 0) {
-                // Positieve pitch (Klimmen) - Solide
-                ctx.lineTo(pL_inner.x, pL_inner.y);
-                ctx.moveTo(pR_inner.x, pR_inner.y);
-                ctx.lineTo(pR_outer.x, pR_outer.y);
-                ctx.stroke();
-                // (Je kunt hier eventueel haakjes omlaag tekenen via een kleine pitch offset op de hoeken)
-            } else {
-                // Negatieve pitch (Dalen) - Gestippeld
-                ctx.setLineDash([6, 4]);
-                ctx.moveTo(pL_outer.x, pL_outer.y);
-                ctx.lineTo(pL_inner.x, pL_inner.y);
-                ctx.moveTo(pR_inner.x, pR_inner.y);
-                ctx.lineTo(pR_outer.x, pR_outer.y);
-                ctx.stroke();
-            }
+    static rungDirection(azDeg, elDeg, lateralDeg) {
+        const center = F18HudMath.enuFromAzEl(azDeg, elDeg);
+        if (!lateralDeg) {
+            return center;
         }
-        ctx.setLineDash([]);
+        const right = F18HudMath.horizontalRight(azDeg);
+        const t = Math.tan(F18HudMath.degToRad(lateralDeg));
+        return F18HudMath.normalizeEnu({
+            e: center.e + right.e * t,
+            n: center.n + right.n * t,
+            u: center.u + right.u * t
+        });
+    }
 
-        // --- 2. TEKEN DE FPV (Flight Path Vector) ---
-        const fpvPos = this.projectAnglesToScreen(scene, cameraPos, track, climbAngle);
-        
-        if (fpvPos) {
-            ctx.beginPath();
-            ctx.arc(fpvPos.x, fpvPos.y, 7, 0, Math.PI * 2);
-            ctx.moveTo(fpvPos.x - 7, fpvPos.y); ctx.lineTo(fpvPos.x - 18, fpvPos.y); // Linker vleugel
-            ctx.moveTo(fpvPos.x + 7, fpvPos.y); ctx.lineTo(fpvPos.x + 18, fpvPos.y); // Rechter vleugel
-            ctx.moveTo(fpvPos.x, fpvPos.y - 7); ctx.lineTo(fpvPos.x, fpvPos.y - 14); // Staart
-            ctx.stroke();
+    /**
+     * Bouwt de lichaamsassen (rechts/voor/boven), uitgedrukt in wereld-ENU
+     * coördinaten, voor de huidige vliegtuighouding. Dit gebruikt dezelfde
+     * assen-conventie als geofs.camera.modes[*].position: X=rechts, Y=voor,
+     * Z=boven.
+     *
+     * headingDeg: kompaskoers van de neus (0=N, 90=O)
+     * pitchDeg:   neus-omhoog-hoek (positief = klimmende houding)
+     * rollDeg:    slaghoek/bank (positief = rechtervleugel omlaag)
+     */
+    static bodyBasis(headingDeg, pitchDeg, rollDeg) {
+        const h = F18HudMath.degToRad(headingDeg);
+        const p = F18HudMath.degToRad(pitchDeg);
+        const r = F18HudMath.degToRad(rollDeg);
+
+        // 1. Gieren (yaw) om de ware "boven"-as.
+        const forward0 = { e: Math.sin(h), n: Math.cos(h), u: 0 };
+        const right0 = { e: Math.cos(h), n: -Math.sin(h), u: 0 };
+        const up0 = { e: 0, n: 0, u: 1 };
+
+        // 2. Stampen (pitch) om de (inmiddels gegierde) rechts-as.
+        const forward1 = {
+            e: Math.cos(p) * forward0.e + Math.sin(p) * up0.e,
+            n: Math.cos(p) * forward0.n + Math.sin(p) * up0.n,
+            u: Math.cos(p) * forward0.u + Math.sin(p) * up0.u
+        };
+        const up1 = {
+            e: -Math.sin(p) * forward0.e + Math.cos(p) * up0.e,
+            n: -Math.sin(p) * forward0.n + Math.cos(p) * up0.n,
+            u: -Math.sin(p) * forward0.u + Math.cos(p) * up0.u
+        };
+
+        // 3. Slaan/rollen (roll) om de (inmiddels gestampte) voor-as. Positieve
+        // roll = rechtervleugel omlaag: de rechts-as roteert naar "beneden".
+        const right2 = {
+            e: Math.cos(r) * right0.e - Math.sin(r) * up1.e,
+            n: Math.cos(r) * right0.n - Math.sin(r) * up1.n,
+            u: Math.cos(r) * right0.u - Math.sin(r) * up1.u
+        };
+        const up2 = {
+            e: Math.sin(r) * right0.e + Math.cos(r) * up1.e,
+            n: Math.sin(r) * right0.n + Math.cos(r) * up1.n,
+            u: Math.sin(r) * right0.u + Math.cos(r) * up1.u
+        };
+
+        return { right: right2, forward: forward1, up: up2 };
+    }
+
+    static dotEnu(a, b) {
+        return a.e * b.e + a.n * b.n + a.u * b.u;
+    }
+
+    // Drukt een wereld-ENU eenheidsvector uit in het lichaamsassenstelsel
+    // (x=rechts, y=voor, z=boven) via projectie op de lichaamsassen.
+    static worldToBody(vecEnu, basis) {
+        return {
+            x: F18HudMath.dotEnu(vecEnu, basis.right),
+            y: F18HudMath.dotEnu(vecEnu, basis.forward),
+            z: F18HudMath.dotEnu(vecEnu, basis.up)
+        };
+    }
+
+    static crossBody(a, b) {
+        return {
+            x: a.y * b.z - a.z * b.y,
+            y: a.z * b.x - a.x * b.z,
+            z: a.x * b.y - a.y * b.x
+        };
+    }
+
+    /**
+     * Bouwt het fysieke HUD-glasvlak-model, uitgedrukt in meters t.o.v. het
+     * NEUTRALE oogpunt (d.w.z. het oogpunt bij offsets.current = [0,0,0]).
+     *
+     * distanceM:       afstand van het neutrale oog tot het midden van het glas
+     * verticalOffsetM: fijnafstemming van de hoogte van het glasmidden
+     * tiltDeg:         kanteling van het glas: de bovenkant staat dichter bij de
+     *                   piloot dan de onderkant (zoals gevraagd)
+     * halfWidthM/halfHeightM: halve fysieke afmetingen van het combiner-glas
+     */
+    static buildGlass({ distanceM, verticalOffsetM, tiltDeg, halfWidthM, halfHeightM }) {
+        const tilt = F18HudMath.degToRad(tiltDeg);
+        const center = { x: 0, y: distanceM, z: verticalOffsetM };
+        const right = { x: 1, y: 0, z: 0 };
+        // Naar "boven" op het glas bewegen brengt je dichter bij de piloot
+        // (kleinere y) terwijl je hoger komt (grotere z) - exact de gevraagde
+        // kanteling (boven dichterbij dan onder).
+        const up = { x: 0, y: -Math.sin(tilt), z: Math.cos(tilt) };
+        const normal = F18HudMath.crossBody(right, up);
+        const len = Math.hypot(normal.x, normal.y, normal.z) || 1;
+        normal.x /= len; normal.y /= len; normal.z /= len;
+        return { center, right, up, normal, halfWidth: halfWidthM, halfHeight: halfHeightM };
+    }
+
+    /**
+     * De kernberekening: snijdt een lichtstraal vanuit het (verplaatste) oog,
+     * in lichaamsrichting dirBody, met het fysieke HUD-glasvlak. Retourneert
+     * de glaslokale coördinaten in METERS langs glass.right/glass.up, of null
+     * als de straal het glas niet kan bereiken (evenwijdig eraan, of het doel
+     * ligt achter het oog).
+     *
+     * eye:     {x,y,z} oogpositie in meters, in dezelfde ruimte als `glass`
+     *          (dus als offset t.o.v. het neutrale oogpunt)
+     * dirBody: {x,y,z} eenheidsrichting, al uitgedrukt in het lichaamsassenstelsel
+     */
+    static projectBodyDirToGlass(eye, dirBody, glass) {
+        const denom = dirBody.x * glass.normal.x + dirBody.y * glass.normal.y + dirBody.z * glass.normal.z;
+        if (Math.abs(denom) < 1e-6) {
+            return null; // Richting loopt evenwijdig aan het glas.
         }
+
+        const toCenterX = glass.center.x - eye.x;
+        const toCenterY = glass.center.y - eye.y;
+        const toCenterZ = glass.center.z - eye.z;
+        const numer = toCenterX * glass.normal.x + toCenterY * glass.normal.y + toCenterZ * glass.normal.z;
+        const t = numer / denom;
+        if (t <= 0) {
+            return null; // Doelrichting ligt achter het oogpunt.
+        }
+
+        const px = eye.x + t * dirBody.x - glass.center.x;
+        const py = eye.y + t * dirBody.y - glass.center.y;
+        const pz = eye.z + t * dirBody.z - glass.center.z;
+
+        return {
+            x: px * glass.right.x + py * glass.right.y + pz * glass.right.z,
+            y: px * glass.up.x + py * glass.up.y + pz * glass.up.z
+        };
+    }
+
+    // Combineert de wereld-richtingsberekening (azimuth/elevatie, evt. langs een
+    // ladder-sport) met de lichaamstransformatie en de glas-projectie.
+    static projectWorldAzElToGlass(basis, eye, glass, azDeg, elDeg, lateralDeg = 0) {
+        const dirWorld = F18HudMath.rungDirection(azDeg, elDeg, lateralDeg);
+        const dirBody = F18HudMath.worldToBody(dirWorld, basis);
+        return F18HudMath.projectBodyDirToGlass(eye, dirBody, glass);
     }
 }
 
 class F18HudModule {
-    static HUD_PHYSICAL_HEIGHT_M = 0.30;
-    static HUD_PARALLAX_GAIN = 1.65;
-    static CAMERA_TO_HUD_DISTANCE_M = 0.92;
+    // --- Fysiek HUD-glasmodel (kalibratie-constanten) ---------------------
+    // Afstand (meter) van het neutrale oogpunt tot het midden van het HUD-glas.
+    static HUD_GLASS_DISTANCE_M = 0.92;
+    // Fijnafstemming (meter) van de hoogte van het glasmidden t.o.v. het oog.
+    // Positiever => hele symbologie zakt op het glas; negatiever => stijgt.
+    static HUD_GLASS_VERTICAL_OFFSET_M = 0;
+    // Kanteling van het glas: de bovenkant staat dichter bij de piloot dan de
+    // onderkant (zoals bij een echte HUD-combiner).
+    static HUD_GLASS_TILT_DEG = 10;
+    // Halve fysieke afmetingen van het combiner-glas, in meter.
+    static HUD_GLASS_HALF_WIDTH_M = 0.15;
+    static HUD_GLASS_HALF_HEIGHT_M = 0.17;
+    // Welk deel van de halve canvashoogte de halve glashoogte mag innemen.
+    static HUD_CANVAS_FILL = 0.85;
+    // Zet op -1 als een rechterbank de ladder de verkeerde kant op laat draaien.
+    static ROLL_SIGN = 1;
+
     static DEFAULT_COLOR = '#00ff00';
-    static RAD_TO_DEG = 180 / Math.PI;
 
     // Prepares HUD module state and renderer references.
     constructor(dependencies = {}) {
@@ -149,17 +279,13 @@ class F18HudModule {
         mfdModule: dependencies.mfdModule ?? MfdModule,
         getAddon: dependencies.getAddon ?? (() => window.BasePlugin?.getActiveAddon?.() ?? null)
       };
+      // Optionele overrides voor de HUD_GLASS_* kalibratieconstanten hierboven.
+      this.config = (dependencies.config && typeof dependencies.config === 'object') ? dependencies.config : {};
       this.originalRenderer = null;
       this.installed = false;
-      this.fpvState = {
-        lastLat: null,
-        lastLon: null,
-        lastAlt: null,
-        relAzDeg: 0,
-        relElDeg: 0,
-        valid: false
-      };
-      this.lastFpvCameraWc = null;
+      // Wereld-azimuth/elevatie van de flight path vector (waar het toestel
+      // daadwerkelijk naartoe vliegt), volledig camera-onafhankelijk.
+      this.fpvAngles = { azDeg: 0, elDeg: 0, valid: false };
       this.maxG = 1;
     }
 
@@ -317,92 +443,108 @@ class F18HudModule {
       this.installed = false;
     }
 
-    getCurrentCameraZ() {
-      const mode = window.geofs?.camera?.modes?.[1];
-      const baseZ = mode?.position?.[2] ?? this.dependencies.cameraModule?.DEFAULT_HUD_CAMERA_Z;
-      const offsetZ = mode?.offsets?.current?.[2] ?? 0;
-      return baseZ + offsetZ;
+    /**
+     * Actuele houding van het vliegtuig (koers/pitch/roll, in graden), gebruikt
+     * om wereld-referentierichtingen (FPV, ladder) om te zetten naar het
+     * lichaamsassenstelsel waarin het HUD-glas vastzit. ac.htr wordt per frame
+     * bijgewerkt en is minder gevoelig voor smoothing-vertraging dan de
+     * animatiewaarden, en wordt daarom als primaire bron gebruikt (net als
+     * voorheen al gebeurde voor de pitch-uitlezing).
+     */
+    getAircraftAttitude() {
+      const ac = window.geofs?.aircraft?.instance;
+      const anim = window.geofs?.animation?.values;
+      const htr = ac?.htr;
+
+      const headingDeg = htr?.[0] ?? anim?.heading360 ?? anim?.heading ?? 0;
+      const pitchDeg = Number.isFinite(htr?.[1]) ? -htr[1] : (anim?.pitch ?? 0);
+      const rollDeg = F18HudModule.ROLL_SIGN * (anim?.roll ?? htr?.[2] ?? 0);
+
+      return { headingDeg, pitchDeg, rollDeg };
     }
 
-    computeHudGeometry(w, h, camera) {
-      // 1. De sleutel voor 3D Cockpit HUDs: De verticale kijkhoek van het glas (Combiner FOV).
-      // Een echte F/A-18 HUD beslaat ongeveer 16.5 graden van boven naar beneden op het glas.
-      // -> Ladder te dicht op elkaar? Verlaag dit getal (bijv. naar 14 of 15).
-      // -> Ladder te ver uit elkaar (buiten beeld)? Verhoog dit getal (bijv. naar 18 of 20).
-      const HUD_VERTICAL_FOV_DEG = this.config?.hudFovDeg || 16.5;
-
-      // 2. Bereken pixels per graad direct op basis van de textuurhoogte en het glazen venster
-      const pixelsPerDeg = h / HUD_VERTICAL_FOV_DEG;
-      const pixelsPerDegX = pixelsPerDeg; // Vierkante pixels op de HUD-textuur
-
-      // 3. Optische parallax / Boresight offset (in graden t.o.v. het midden van de textuur).
-      // Omdat de virtuele piloot net iets boven of onder de verlichte projector kan zitten,
-      // kun je hiermee de hele symbologie verticaal uitlijnen met de buitenwereld.
-      // -> Vlieg je vlak (0 fpm) en staat de 0-horizon van de HUD net te LAAG? Maak dit getal positiever.
-      // -> Staat de 0-horizon net te HOOG? Maak dit getal negatiever (bijv. -1.5).
-      const cameraOffsetYDeg = this.config?.cameraOffsetYDeg || 0; 
-      const cameraOffsetPx = cameraOffsetYDeg * pixelsPerDeg;
-
-      // Fictieve focal length behouden voor eventuele interne compatibiliteit in de rest van je script
-      const focalLengthPx = (h / 2) / Math.tan((HUD_VERTICAL_FOV_DEG * (Math.PI / 180)) / 2);
-
-      return { pixelsPerDeg, pixelsPerDegX, cameraOffsetPx, focalLengthPx };
+    /**
+     * Oogpositie (in meter) t.o.v. het neutrale, ontwerp-oogpunt van de cockpit.
+     * Dit is precies de hoofdverplaatsing (leunen/kijkstoel omhoog-omlaag) die
+     * échte parallax veroorzaakt op een dichtbij glas. Kijkrichting (rondkijken)
+     * zit hier bewust NIET in: die verandert alleen waar de al-berekende
+     * glaspositie op het scherm terechtkomt (normale 3D-rendering), niet de
+     * inhoud van de HUD-textuur zelf.
+     */
+    getEyeOffsetMeters() {
+      const offset = window.geofs?.camera?.modes?.[1]?.offsets?.current;
+      if (Array.isArray(offset) && offset.length >= 3) {
+        return { x: offset[0] || 0, y: offset[1] || 0, z: offset[2] || 0 };
+      }
+      return { x: 0, y: 0, z: 0 };
     }
 
-    updateFpvState() {
-    // ── WAAROM DEZE AANPAK ──────────────────────────────────────────────────────
-    // De HUD-canvas is een textuur op het HUD-glas, dat VASTGEZET is aan het
-    // vliegtuig. Het centrum van de canvas (cx, cy) = vliegtuig-boresight (neus).
-    //
-    // De oude code gebruikte camera.viewMatrix om de snelheidsvector naar
-    // camera-ruimte te transformeren. Probleem: als de piloot naar rechts kijkt,
-    // roteert die matrix, en de "rechttoe"-vliegrichting verschijnt LINKS in
-    // camera-ruimte → FPV beweegt naar links op het canvas. Dat is precies het
-    // omgekeerde van correct.
-    //
-    // Correcte aanpak: druk de FPV-afwijking uit t.o.v. de VLIEGTUIGNEUS via
-    // de vliegdata:
-    //   Horizontaal: track − heading  (zijwind / sideslip)
-    //   Verticaal:   climbAngle − pitch  (≈ negatieve α)
-    //
-    // Deze waarden zijn volledig camera-onafhankelijk. Het andere FPV-script
-    // (geo-fs-flight-path-vector.js) plaatst zijn entity precies op dezelfde
-    // richting in de 3D-wereld; onze berekening hier levert exact hetzelfde
-    // resultaat op het canvas.
-    // ────────────────────────────────────────────────────────────────────────────
-
-    const anim = window.geofs?.animation?.values;
-    if (!anim) {
-      this.fpvState = { valid: false, relAzDeg: 0, relElDeg: 0 };
-      return;
+    // Bouwt het fysieke HUD-glasmodel (zie F18HudMath.buildGlass), met optionele
+    // overrides via this.config voor kalibratie in-game.
+    getGlassModel() {
+      return F18HudMath.buildGlass({
+        distanceM: this.config.hudGlassDistanceM ?? F18HudModule.HUD_GLASS_DISTANCE_M,
+        verticalOffsetM: this.config.hudGlassVerticalOffsetM ?? F18HudModule.HUD_GLASS_VERTICAL_OFFSET_M,
+        tiltDeg: this.config.hudGlassTiltDeg ?? F18HudModule.HUD_GLASS_TILT_DEG,
+        halfWidthM: this.config.hudGlassHalfWidthM ?? F18HudModule.HUD_GLASS_HALF_WIDTH_M,
+        halfHeightM: this.config.hudGlassHalfHeightM ?? F18HudModule.HUD_GLASS_HALF_HEIGHT_M
+      });
     }
 
-    // Minimale snelheid: onder ~10 kts is vluchtdata te onbetrouwbaar
-    const kias = anim.kias ?? anim.ias ?? 0;
-    if (kias < 10) {
-      this.fpvState = { valid: false, relAzDeg: 0, relElDeg: 0 };
-      return;
+    // Aantal canvaspixels per glas-meter. Eén schaalfactor voor x én y houdt
+    // cirkelvormige symbolen (zoals de FPV-bol) rond in plaats van vervormd.
+    getPixelsPerMeter(h) {
+      const halfHeightM = this.config.hudGlassHalfHeightM ?? F18HudModule.HUD_GLASS_HALF_HEIGHT_M;
+      const fill = this.config.hudCanvasFill ?? F18HudModule.HUD_CANVAS_FILL;
+      return ((h / 2) * fill) / halfHeightM;
     }
 
-    const heading    = anim.heading360 ?? anim.heading ?? 0;
-    const pitch      = anim.pitch ?? 0;
-    const track      = anim.track ?? heading;
-    const climbAngle = anim.climbAngle ?? 0;
+    /**
+     * Werkt de FPV-richting bij: de ware wereldkoers (track) en klimhoek
+     * (climbAngle) van de snelheidsvector - exact waar het toestel naartoe
+     * vliegt. Deze twee getallen liggen al in de "aarde-horizontale"
+     * referentie die de pitch ladder ook gebruikt, dus FPV en ladder blijven
+     * per definitie synchroon (zie F18HudMath doc-comment hierboven).
+     */
+    updateFpvAngles() {
+      const anim = window.geofs?.animation?.values;
+      if (!anim) {
+        this.fpvAngles = { valid: false, azDeg: 0, elDeg: 0 };
+        return;
+      }
 
-    // Horizontale FPV-offset t.o.v. neus: sideslip / wind-drift hoek
-    let relAzDeg = track - heading;
-    while (relAzDeg >  180) relAzDeg -= 360;  // normaliseer naar [-180, 180]
-    while (relAzDeg < -180) relAzDeg += 360;
+      // Minimale snelheid: onder ~10 kts is de track te onbetrouwbaar.
+      const kias = anim.kias ?? anim.ias ?? 0;
+      if (kias < 10) {
+        this.fpvAngles = { valid: false, azDeg: 0, elDeg: 0 };
+        return;
+      }
 
-    // Verticale FPV-offset t.o.v. neus: vluchthoek minus neusnicking ≈ −α
-    const relElDeg = climbAngle - pitch;
+      const azDeg = anim.track ?? anim.heading360 ?? anim.heading ?? 0;
+      const elDeg = anim.climbAngle ?? 0;
+      this.fpvAngles = { valid: true, azDeg, elDeg };
+    }
 
-    this.fpvState = {
-      valid: true,
-      relAzDeg,
-      relElDeg
-    };
-  }
+    // Projecteert een reeds-berekend glaspunt (in meter, of null) naar canvaspixels.
+    static projectToCanvas(glassPoint, pixelsPerMeter, cx, cy) {
+      if (!glassPoint) {
+        return null;
+      }
+      return { x: cx + glassPoint.x * pixelsPerMeter, y: cy - glassPoint.y * pixelsPerMeter };
+    }
+
+    // Numerieke schatting van "pixels per graad" rond een gegeven wereldrichting,
+    // gebruikt voor schaalafhankelijke symbolen (zoals het AoA-haakje) die naast
+    // de FPV staan. Bemonstert de echte, niet-lineaire glasprojectie, dus blijft
+    // correct ook als het HUD-glas schuin staat.
+    static estimatePixelsPerDegree(basis, eye, glass, pixelsPerMeter, azDeg, elDeg) {
+      const a = F18HudMath.projectWorldAzElToGlass(basis, eye, glass, azDeg, elDeg - 0.5, 0);
+      const b = F18HudMath.projectWorldAzElToGlass(basis, eye, glass, azDeg, elDeg + 0.5, 0);
+      if (!a || !b) {
+        return pixelsPerMeter * F18HudMath.DEG_TO_RAD * F18HudModule.HUD_GLASS_DISTANCE_M;
+      }
+      return Math.hypot((b.x - a.x) * pixelsPerMeter, (b.y - a.y) * pixelsPerMeter);
+    }
     static drawAoaText(ctx, w, h, aoa) {
     const previousAlign = ctx.textAlign;
     const previousBaseline = ctx.textBaseline;
@@ -415,15 +557,16 @@ class F18HudModule {
   
     }
 
-    static drawBoresight(ctx, cx, cy, cameraOffsetPx, w, h) {
+    static drawBoresight(ctx, pos, w, h) {
+    if (!pos) return;
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.strokeStyle = this.DEFAULT_COLOR;
     ctx.lineWidth = 1.1;
     ctx.setLineDash([]);
 
-    const wx = cx;
-    const wy = cy - cameraOffsetPx;
+    const wx = pos.x;
+    const wy = pos.y;
     const ww = w * 0.027;
     const wh = h * 0.016;
     const stub = w * 0.010;
@@ -445,14 +588,29 @@ class F18HudModule {
     ctx.restore();
   }
 
-  static drawPitchLadder(ctx, camera, pitchDeg, fpvState, fpvPos, cx, clipCy, symbolCy, pixelsPerDeg, w, h) {
-    // Bepaal het ankerpunt voor de rotatie en centrering: de FPV (indien geldig), anders als fallback de boresight
-    const anchorX = fpvPos ? fpvPos.x : cx;
-    const anchorY = fpvPos ? fpvPos.y : symbolCy;
-    
-    // De absolute vluchthoek (Flight Path Angle / fpaDeg) van de FPV t.o.v. de horizon.
-    // Dit is de neus-pitch + de relatieve elevatie van de FPV.
-    const fpaDeg = (fpvPos && fpvState?.valid) ? (pitchDeg + (fpvState.relElDeg || 0)) : pitchDeg;
+  /**
+   * Tekent de artificial horizon en de pitch ladder door voor elk punt de
+   * echte 3D-richting (F18HudMath.projectWorldAzElToGlass) te projecteren op
+   * het fysieke, gekantelde HUD-glas. Er wordt hier bewust NIET meer met een
+   * losse 2D ctx.rotate(-camera.roll) gewerkt: de rolhoek van het vliegtuig
+   * zit al verwerkt in `basis` (zie F18HudMath.bodyBasis), dus zowel de FPV
+   * als elke ladder-sport roteren consistent en correct met een bank, terwijl
+   * ze onderling om elkaar heen (om de FPV) blijven staan.
+   *
+   * azDeg/elDeg van elk punt worden uitgedrukt in de WARE (aarde-horizontale)
+   * referentie: elevatie 0 = echte horizon/artificial horizon, en de FPV zelf
+   * staat (per definitie) op elevatie = climbAngle. Staat climbAngle op 0, dan
+   * valt de FPV exact op de artificial horizon - conform de eis dat dat precies
+   * overeenkomt met een verticale snelheid van 0.
+   */
+  static drawPitchLadder(ctx, basis, eye, glass, pixelsPerMeter, fpvAngles, fpvPos, cx, cy, w, h) {
+    if (!fpvAngles?.valid || !fpvPos) return; // Zonder geldige FPV-koers is er geen betrouwbare as om de ladder op te centreren.
+
+    const azDeg = fpvAngles.azDeg;
+    const project = (elDeg, lateralDeg) => F18HudModule.projectToCanvas(
+      F18HudMath.projectWorldAzElToGlass(basis, eye, glass, azDeg, elDeg, lateralDeg),
+      pixelsPerMeter, cx, cy
+    );
 
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -468,69 +626,84 @@ class F18HudModule {
     ctx.closePath();
     ctx.clip();
 
-    // Verplaats de canvas-oorsprong EXACT naar de FPV en roteer rondom dit punt met de rolhoek
-    ctx.translate(anchorX, anchorY);
-    ctx.rotate(-camera.roll);
     ctx.strokeStyle = this.DEFAULT_COLOR;
+    ctx.fillStyle = this.DEFAULT_COLOR;
     ctx.lineWidth = 1.5;
 
-    // Artificial Horizon (0 graden lijn)
-    // In ons nieuwe FPV-gerichte coördinatenstelsel is (0,0) de FPV.
-    // De horizon ligt op verticale afstand fpaDeg onder/boven de FPV.
-    const horizonOffsetY = fpaDeg * pixelsPerDeg;
-
+    // Artificial horizon: de ware 0°-elevatielijn. Loopt breder door dan de
+    // gewone ladder-sporten en is nooit gestippeld.
+    const HORIZON_HALF_SPAN_DEG = 16;
+    const horizonL = project(0, -HORIZON_HALF_SPAN_DEG);
+    const horizonR = project(0, HORIZON_HALF_SPAN_DEG);
     ctx.setLineDash([]);
-    ctx.beginPath();
-    ctx.moveTo(-w * 0.56, horizonOffsetY);
-    ctx.lineTo(w * 0.56, horizonOffsetY);
-    ctx.stroke();
+    if (horizonL && horizonR) {
+      ctx.beginPath();
+      ctx.moveTo(horizonL.x, horizonL.y);
+      ctx.lineTo(horizonR.x, horizonR.y);
+      ctx.stroke();
+    }
 
+    const TICK_STEP_DEG = 5;
     const TICK_RANGE_DEG = 85;
-    const SEGMENT_OUTER = w * 0.14;
-    const SEGMENT_INNER = w * 0.025;
-    const END_TICK_LEN = h * 0.03;
-    const LABEL_X = SEGMENT_OUTER + w * 0.025;
+    const VISIBLE_RANGE_DEG = 45; // Sporten verder dan dit van de FPV worden overgeslagen.
+    const SEGMENT_OUTER_DEG = 8;    // Halve laterale lengte van een sport, in graden.
+    const SEGMENT_INNER_DEG = 2;    // Laterale opening rondom de FPV-kolom, in graden.
+    const END_TICK_DEG = 1.4;       // Lengte van het kleine "naar de horizon toe" streepje aan het uiteinde.
+    const LABEL_GAP_DEG = 1.6;      // Extra laterale afstand voor het getal t.o.v. het uiteinde.
 
     const savedFont = ctx.font;
     const savedAlign = ctx.textAlign;
     const savedBaseline = ctx.textBaseline;
-    ctx.fillStyle = this.DEFAULT_COLOR;
     ctx.font = `${Math.round(h * 0.038)}px monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.lineWidth = 1;
 
-    for (let deg = 5; deg <= TICK_RANGE_DEG; deg += 5) {
+    for (let deg = TICK_STEP_DEG; deg <= TICK_RANGE_DEG; deg += TICK_STEP_DEG) {
       for (const sign of [-1, 1]) {
-        const ladderDeg = sign * deg;
-        // De verticale afstand van deze laddertrede t.o.v. de FPV is het verschil tussen FPA en de ladderhoek
-        const tickY = (fpaDeg - ladderDeg) * pixelsPerDeg;
-        
-        const isBelow = ladderDeg < 0; // Negatieve pitch ligt onder de horizon
-        const tickDir = isBelow ? -1 : 1; // "Stubs" aan de uiteinden wijzen altijd richting de horizon
+        const elDeg = sign * deg;
+        if (Math.abs(elDeg - fpvAngles.elDeg) > VISIBLE_RANGE_DEG) continue;
+
+        const isBelow = elDeg < 0;
+        const tickDir = isBelow ? -1 : 1; // Uiteinde-streepjes wijzen altijd richting de horizon.
+
+        const outerL = project(elDeg, -SEGMENT_OUTER_DEG);
+        const innerL = project(elDeg, -SEGMENT_INNER_DEG);
+        const innerR = project(elDeg, SEGMENT_INNER_DEG);
+        const outerR = project(elDeg, SEGMENT_OUTER_DEG);
+        if (!outerL || !innerL || !innerR || !outerR) continue;
 
         ctx.setLineDash(isBelow ? [6, 4] : []);
         ctx.beginPath();
-        ctx.moveTo(-SEGMENT_OUTER, tickY);
-        ctx.lineTo(-SEGMENT_INNER, tickY);
+        ctx.moveTo(outerL.x, outerL.y);
+        ctx.lineTo(innerL.x, innerL.y);
         ctx.stroke();
         ctx.beginPath();
-        ctx.moveTo(SEGMENT_INNER, tickY);
-        ctx.lineTo(SEGMENT_OUTER, tickY);
+        ctx.moveTo(innerR.x, innerR.y);
+        ctx.lineTo(outerR.x, outerR.y);
         ctx.stroke();
         ctx.setLineDash([]);
 
-        ctx.beginPath();
-        ctx.moveTo(-SEGMENT_OUTER, tickY);
-        ctx.lineTo(-SEGMENT_OUTER, tickY + tickDir * END_TICK_LEN);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(SEGMENT_OUTER, tickY);
-        ctx.lineTo(SEGMENT_OUTER, tickY + tickDir * END_TICK_LEN);
-        ctx.stroke();
+        // Uiteinde-streepjes: eigen 3D-projectie i.p.v. een platte pixel-nudge,
+        // zodat ze correct mee blijven roteren bij een bankende bocht.
+        const tickL = project(elDeg + tickDir * END_TICK_DEG, -SEGMENT_OUTER_DEG);
+        const tickR = project(elDeg + tickDir * END_TICK_DEG, SEGMENT_OUTER_DEG);
+        if (tickL) {
+          ctx.beginPath();
+          ctx.moveTo(outerL.x, outerL.y);
+          ctx.lineTo(tickL.x, tickL.y);
+          ctx.stroke();
+        }
+        if (tickR) {
+          ctx.beginPath();
+          ctx.moveTo(outerR.x, outerR.y);
+          ctx.lineTo(tickR.x, tickR.y);
+          ctx.stroke();
+        }
 
-        ctx.fillText(String(deg), -LABEL_X - 3, isBelow ? tickY - 7 : tickY + 7);
-        ctx.fillText(String(deg), LABEL_X + 3, isBelow ? tickY - 7 : tickY + 7);
+        const labelL = project(elDeg, -(SEGMENT_OUTER_DEG + LABEL_GAP_DEG));
+        const labelR = project(elDeg, SEGMENT_OUTER_DEG + LABEL_GAP_DEG);
+        if (labelL) ctx.fillText(String(deg), labelL.x, labelL.y);
+        if (labelR) ctx.fillText(String(deg), labelR.x, labelR.y);
       }
     }
 
@@ -541,79 +714,24 @@ class F18HudModule {
     ctx.restore();
   }
 
-  computeFpvScreenPosition(camera, cx, cy, pixelsPerDeg, pixelsPerDegX, cameraOffsetPx, w, h) {
-    // Primair pad: exact zelfde principe als geo-fs-flight-path-vector.js
-    // - neem camera delta in wereldruimte
-    // - plaats FPV-punt vooruit langs die vector
-    // - projecteer met Cesium naar window pixels
-    // - schaal window pixels naar HUD-canvas pixels
-    const viewer = window.geofs?.api?.viewer;
-    const scene = viewer?.scene;
-    if (window.Cesium && scene?.camera?.positionWC) {
-      const currWc = scene.camera.positionWC;
-
-      if (!this.lastFpvCameraWc) {
-        this.lastFpvCameraWc = Cesium.Cartesian3.clone(currWc);
-      } else {
-        const deltaWc = Cesium.Cartesian3.subtract(currWc, this.lastFpvCameraWc, new Cesium.Cartesian3());
-        this.lastFpvCameraWc = Cesium.Cartesian3.clone(currWc);
-
-        const speedSq = Cesium.Cartesian3.magnitudeSquared(deltaWc);
-        const onGround = Boolean(window.geofs?.aircraft?.instance?.groundContact);
-        if (!onGround && speedSq > 1e-7) {
-          const factorRaw = Number(window.howFar);
-          const factor = Number.isFinite(factorRaw) && factorRaw > 0 ? factorRaw : 15;
-
-          const fpvWorld = new Cesium.Cartesian3(
-            currWc.x + (factor * deltaWc.x),
-            currWc.y + (factor * deltaWc.y),
-            currWc.z + (factor * deltaWc.z)
-          );
-
-          const windowPos = Cesium.SceneTransforms.wgs84ToWindowCoordinates(scene, fpvWorld);
-          if (windowPos && Number.isFinite(windowPos.x) && Number.isFinite(windowPos.y)) {
-            const sourceCanvas = viewer.canvas ?? scene.canvas;
-            const sourceW = sourceCanvas?.clientWidth || sourceCanvas?.width || w;
-            const sourceH = sourceCanvas?.clientHeight || sourceCanvas?.height || h;
-
-            if (sourceW > 0 && sourceH > 0) {
-              const x = (windowPos.x / sourceW) * w;
-              const y = (windowPos.y / sourceH) * h;
-              if (Number.isFinite(x) && Number.isFinite(y)) {
-                return { x, y, clamped: false, projected: true };
-              }
-            }
-          }
-        }
-      }
+  /**
+   * Berekent de schermpositie van de FPV door de ware FPV-richting (track,
+   * climbAngle - zie updateFpvAngles) via het lichaamsassenstelsel op het
+   * fysieke HUD-glas te projecteren. Bij ontbrekende/onbetrouwbare vluchtdata
+   * (bijv. te lage snelheid) valt de FPV terug op de boresight, net als een
+   * echte HUD die de FPV verbergt/laat samenvallen met de golfstip als er geen
+   * bruikbare snelheidsvector is.
+   */
+  computeFpvScreenPosition(basis, eye, glass, pixelsPerMeter, cx, cy, boresightPos) {
+    if (!this.fpvAngles?.valid) {
+      return boresightPos ?? { x: cx, y: cy };
     }
 
-    // Fallback: hoekgebaseerde projectie t.o.v. boresight.
-    if (!this.fpvState || !this.fpvState.valid) {
-      return { x: cx, y: cy - cameraOffsetPx, clamped: false };
-    }
-
-    // Bereken ongeklemde X en Y op de HUD canvas
-    let x = cx + (this.fpvState.relAzDeg * pixelsPerDegX);
-    let y = (cy - cameraOffsetPx) - (this.fpvState.relElDeg * pixelsPerDeg);
-
-    // Marges van de fysieke HUD-combiner glasranden (in pixels vanaf het midden)
-    const maxMarginX = cx * 0.75; 
-    const maxMarginY = cy * 0.80; 
-
-    let clamped = false;
-
-    // Klem de FPV binnen de grenzen van de HUD
-    if (Math.abs(x - cx) > maxMarginX) {
-      x = cx + Math.sign(x - cx) * maxMarginX;
-      clamped = true;
-    }
-    if (Math.abs(y - (cy - cameraOffsetPx)) > maxMarginY) {
-      y = (cy - cameraOffsetPx) + Math.sign(y - (cy - cameraOffsetPx)) * maxMarginY;
-      clamped = true;
-    }
-
-    return { x, y, clamped, projected: false };
+    const glassPoint = F18HudMath.projectWorldAzElToGlass(
+      basis, eye, glass, this.fpvAngles.azDeg, this.fpvAngles.elDeg, 0
+    );
+    const projected = F18HudModule.projectToCanvas(glassPoint, pixelsPerMeter, cx, cy);
+    return projected ?? boresightPos ?? { x: cx, y: cy };
   }
 
   static drawFpv(ctx, fpvPos, cx, clipCy, w, h) {
@@ -1220,7 +1338,6 @@ class F18HudModule {
 
       const ac = window.geofs?.aircraft?.instance;
       const anim = window.geofs?.animation?.values ?? {};
-      const camera = window.geofs?.api?.viewer?.camera;
 
       const kias = window.exponentialSmoothing
         ? window.exponentialSmoothing('smoothKias', anim.kias ?? 0, 0.1)
@@ -1289,31 +1406,48 @@ class F18HudModule {
       }
 
       // --- Attitude-symbologie (pitch ladder, boresight, FPV, AoA) ---
-      if (camera && ac?.htr) {
+      if (ac?.htr) {
         const cx = w / 2;
         const cy = h / 2;
-        const pitchDeg = -(ac.htr[1] || 0);
 
-        const { pixelsPerDeg, pixelsPerDegX, cameraOffsetPx } = this.computeHudGeometry(w, h, camera);
+        // 1. Vliegtuighouding -> lichaamsassenstelsel; oogpositie en fysiek
+        // glasmodel; schaal (px/m). Zie F18HudMath voor de volledige afleiding.
+        const attitude = this.getAircraftAttitude();
+        const basis = F18HudMath.bodyBasis(attitude.headingDeg, attitude.pitchDeg, attitude.rollDeg);
+        const eye = this.getEyeOffsetMeters();
+        const glass = this.getGlassModel();
+        const pixelsPerMeter = this.getPixelsPerMeter(h);
 
-        this.updateFpvState();
-        
-        // 1. Bereken nu EERST de schermpositie van de FPV
-        const fpvPos = this.computeFpvScreenPosition(camera, cx, cy, pixelsPerDeg, pixelsPerDegX, cameraOffsetPx, w, h);
+        this.updateFpvAngles();
+
+        // 2. Boresight: vaste lichaamsrichting (recht vooruit), dus geen
+        // wereld->lichaam-conversie nodig - direct in lichaamscoördinaten.
+        const boresightPos = F18HudModule.projectToCanvas(
+          F18HudMath.projectBodyDirToGlass(eye, { x: 0, y: 1, z: 0 }, glass),
+          pixelsPerMeter, cx, cy
+        );
+
+        // 3. FPV: ware track/climbAngle-richting, via lichaamsassenstelsel.
+        const fpvPos = this.computeFpvScreenPosition(basis, eye, glass, pixelsPerMeter, cx, cy, boresightPos);
 
         if (hudLevel == 'FULL') {
-          F18HudModule.drawBoresight(o, cx, cy, cameraOffsetPx, w, h);
+          F18HudModule.drawBoresight(o, boresightPos, w, h);
         }
-        
-        // 2. Geef de FPV-state en positie mee aan de pitch ladder
-        F18HudModule.drawPitchLadder(o, camera, pitchDeg, this.fpvState, fpvPos, cx, cy, cy - cameraOffsetPx, pixelsPerDeg, w, h);
 
-        // 3. Teken de FPV zelf en de daaraan gekoppelde symbolen
+        // 4. Artificial horizon + pitch ladder: elk punt wordt onafhankelijk
+        // via dezelfde 3D-projectie geplaatst, dus horizon/ladder/FPV blijven
+        // altijd onderling consistent, ook tijdens rollen/bankende bochten.
+        F18HudModule.drawPitchLadder(o, basis, eye, glass, pixelsPerMeter, this.fpvAngles, fpvPos, cx, cy, w, h);
+
+        // 5. Teken de FPV zelf en de daaraan gekoppelde symbolen
         const fpvDrawn = F18HudModule.drawFpv(o, fpvPos, cx, cy, w, h);
         if (hudLevel !== 'MIN') {
           F18HudModule.drawIlsDeviationCues(o, fpvDrawn, helperModule, w, h);
         }
         const isGearDown = window.controls?.gear?.position < 0.5;
+        const pixelsPerDeg = this.fpvAngles.valid
+          ? F18HudModule.estimatePixelsPerDegree(basis, eye, glass, pixelsPerMeter, this.fpvAngles.azDeg, this.fpvAngles.elDeg)
+          : F18HudModule.estimatePixelsPerDegree(basis, eye, glass, pixelsPerMeter, attitude.headingDeg, attitude.pitchDeg);
         F18HudModule.drawAoaBracket(o, fpvDrawn, cx, cy, pixelsPerDeg, w, h, aoa, isGearDown);
       }
 
