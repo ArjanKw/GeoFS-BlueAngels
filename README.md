@@ -56,7 +56,7 @@ Having problems with our v2.0.0? Add v1.7.0 stable.
 Installation (v1.7.0 stable): [geo-fs-f18-mod.js](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/geo-fs-f18-mod.js).
 
 ## Mission Planner
-Install [the mission planner](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/) to create a mission and share it with your aircraft.
+Install [the mission planner](https://github.com/ArjanKw/GeoFS-BlueAngels/raw/refs/heads/main/Scripts/geo-fs-mission-planner.user.js) to create a mission and share it with your aircraft.
 Create a mission by opening the Navigation Panel and clicking on the "Mission Planner" button. You can see the mission in the Navigation Panel. With the F-18 you can also import the mission into the MFDs, by pressing the "Load Datacartridge" button when your engine is off.
 
 ![Mission planner](Images/scripts/mission-planner.png)
