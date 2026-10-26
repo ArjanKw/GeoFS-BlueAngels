@@ -138,7 +138,7 @@ async function processEntrypoint(filename) {
   // Build full version
   console.log('Building full version...');
   const fullScript = buildFullScript(entrypointPath);
-  const fullOutputPath = path.join(BUILD_DIR, `${baseName}.user.full.js`);
+  const fullOutputPath = path.join(BUILD_DIR, `${baseName}.user.js`);
   fs.writeFileSync(fullOutputPath, fullScript, 'utf8');
   console.log(`  ✓ Written: ${path.relative(__dirname, fullOutputPath)} (${(fullScript.length / 1024).toFixed(1)} KB)`);
   
