@@ -51,6 +51,10 @@ This script improves the F-18 in many ways. It add's a totally reworked F-18 HUD
 - [Add this script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f15-addon.user.js) to Tampermonkey
 - Or [add this minified version](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f15-addon.user.min.js).
 
+## Rafale v2.0.0
+- [Add this script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-rafale-addon.user.js) to Tampermonkey
+- Or [add this minified version](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-rafale-addon.user.min.js).
+
 ## Mission Planner
 Install [the mission planner](https://github.com/ArjanKw/GeoFS-BlueAngels/raw/refs/heads/main/Scripts/geo-fs-mission-planner.user.js) to create a mission and share it with your aircraft.
 Create a mission by opening the Navigation Panel and clicking on the "Mission Planner" button. You can see the mission in the Navigation Panel. With the F-18 you can also import the mission into the MFDs, by pressing the "Load Datacartridge" button when your engine is off.
