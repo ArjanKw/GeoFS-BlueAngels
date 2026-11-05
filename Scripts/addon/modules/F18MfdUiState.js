@@ -362,6 +362,18 @@
       ctx.lineWidth = 2;
       ctx.strokeRect(layout.frame.left, layout.frame.top, layout.frame.width, layout.frame.height);
 
+      // renderer.canvasAPI.clear();
+
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.restore();
+
       ctx.fillStyle = color;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
