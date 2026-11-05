@@ -13,6 +13,7 @@
   'use strict';
 
   const MIN_MFD_SCALE = 0.05;
+  let f18PluginInstance = null;
 
   const state = {
     sourceMainPlugin: '',
@@ -109,8 +110,12 @@
   }
 
   function createAircraftBuilderRuntime() {
-    if (window.AircraftBuilderAddon?.mfd) return window.AircraftBuilderAddon.mfd;
-    if (!window.MfdModule) return null;
+    if (window.AircraftBuilderAddon?.mfd) {
+      return window.AircraftBuilderAddon.mfd;
+    }
+    if (!window.MfdModule) {
+      return null;
+    }
 
     class AircraftBuilderMainPlugin {
       constructor() {
@@ -152,8 +157,23 @@
   }
 
   function getLiveMfdModule() {
+    if (window.F18Addon?.mfd) {
+      return window.F18Addon.mfd;
+    }
+
+    if (typeof window.F18MainPlugin === 'function') {
+      if (!f18PluginInstance) {
+        f18PluginInstance = new window.F18MainPlugin({ version: '2.0.0' });
+      }
+      if (f18PluginInstance.addon?.mfd) {
+        return f18PluginInstance.addon.mfd;
+      }
+    }
+
     const addon = window.BasePlugin?.getActiveAddon?.();
-    if (addon?.mfd) return addon.mfd;
+    if (addon?.mfd) {
+      return addon.mfd;
+    }
     return createAircraftBuilderRuntime();
   }
 
@@ -165,7 +185,9 @@
     selected.rotation = cleanVec3(selected.rotation);
 
     const mfd = getLiveMfdModule();
-    if (!mfd) return;
+    if (!mfd) {
+      return;
+    }
 
     if (!mfd.getDisplay(selected.name)) {
       mfd.addMfd(deepClone(selected));
@@ -263,6 +285,7 @@
       state.mfdLayout.forEach(normalizeMfdScale);
       state.selectedMfdIndex = state.mfdLayout.length ? 0 : -1;
     }
+
   }
 
   function patchSourceWithCurrentValues() {
@@ -287,6 +310,41 @@
     return `(function () {\n  'use strict';\n\n  class ${className} extends window.BasePlugin {\n    static AIRCRAFT_ID = '${state.aircraftId}';\n    static DEFAULT_MFD_LAYOUT = ${formatCode(cleanMfdLayout(state.mfdLayout))};\n\n    static CAMERA_CONFIG = {\n      cockpitViewPresets: [],\n      cameraModeDefinitions: {}\n    };\n\n    constructor(config = {}) {\n      super({ id: '${pluginId}', version: config.version ?? '2.0.0' });\n      OptionModule.initializeStorageKey(this.id, '${addonGlobal}Options');\n\n      window.${addonGlobal} = {\n        version: this.version,\n        options: {\n          buildKey: OptionModule.buildOptionKey,\n          read: OptionModule.readOptions,\n          write: OptionModule.writeOptions,\n          get: OptionModule.getOption,\n          set: OptionModule.setOption,\n          getValue: OptionModule.getOptionValue\n        },\n        weapons: new WeaponModule({\n          ...window.WeaponModuleDefaults?.fighter,\n          storageKey: '${addonGlobal}WpnState'\n        }),\n        checklists: ChecklistModule.loadDefaults('fighter') ?? new ChecklistModule(),\n        helper: new HelperModule(),\n        map: null,\n        nav: null,\n        communication: new CommunicationModule(),\n        system: new SystemModule(),\n        hud: new F18HudModule(),\n        camera: null,\n        fmc: new FMCModule(),\n        controls: null,\n        recorder: new RecorderModule(),\n        mfd: MfdModule,\n        lifecycle: {\n          start: () => this.start(),\n          stop: () => this.stop(),\n          restart: () => this.restart(),\n          isRunning: () => this.isRunning()\n        }\n      };\n\n      window.${addonGlobal}.camera = new CameraModule(window.${addonGlobal}.helper, ${className}.CAMERA_CONFIG);\n      window.${addonGlobal}.controls = new ControlModule(window.${addonGlobal}.helper);\n      window.${addonGlobal}.nav = new NavModule();\n      window.${addonGlobal}.map = new MapModule();\n      window.${addonGlobal}.nav.setMapModule(window.${addonGlobal}.map);\n      window.${addonGlobal}.map.setNavModule(window.${addonGlobal}.nav);\n\n      window.${addonGlobal}.mfd = new MfdModule(\n        window.${addonGlobal}.helper,\n        window.${addonGlobal}.map,\n        window.${addonGlobal}.camera,\n        window.${addonGlobal}.weapons,\n        window.${addonGlobal}.recorder\n      );\n\n      window.${addonGlobal}.checklists.registerMfdPages(window.${addonGlobal}.mfd);\n      window.${addonGlobal}.nav.registerMfdPages(window.${addonGlobal}.mfd);\n      window.${addonGlobal}.weapons.registerMfdPages(window.${addonGlobal}.mfd);\n      window.${addonGlobal}.hud.registerMfdPages(window.${addonGlobal}.mfd);\n      window.${addonGlobal}.recorder.registerMfdPages(window.${addonGlobal}.mfd);\n      window.${addonGlobal}.communication.registerMfdPages(window.${addonGlobal}.mfd);\n      window.${addonGlobal}.system.registerMfdPages(window.${addonGlobal}.mfd);\n\n      this.setManagedModules([window.${addonGlobal}.controls]);\n    }\n\n    isAircraftActive() {\n      return window.geofs?.aircraft?.instance?.id === ${className}.AIRCRAFT_ID;\n    }\n\n    getMfdPages() {\n      return window.${addonGlobal}.mfd.pageRegistry;\n    }\n\n    tryInstall() {\n      return window.${addonGlobal}.mfd.ensureLoaded();\n    }\n\n    start() {\n      if (!this.startLifecycle()) return;\n      window.${addonGlobal}.mfd.initializeDefaultMfds(${className}.DEFAULT_MFD_LAYOUT);\n      window.${addonGlobal}.mfd.startCameraWatch();\n      this.tickActive();\n    }\n\n    tickActive() {\n      this.runInstallTick('${className}', () => this.tryInstall());\n    }\n\n    stop() {\n      if (!this.stopLifecycle()) return;\n      window.${addonGlobal}.mfd.restore();\n    }\n\n    restart() {\n      this.stop();\n      this.start();\n    }\n\n    isRunning() {\n      return this.running;\n    }\n  }\n\n  window.${className} = ${className};\n})();\n`;
   }
 
+  function completeGeneratedMainPlugin(source, addonGlobal) {
+    const moduleProperties = `        dataCartridge: null,
+        radar: null,
+        targetingPod: null,
+        flight: null,
+`;
+    const propertyMarker = `        controls: null,
+        recorder: new RecorderModule(),`;
+    const propertyReplacement = `        controls: null,
+${moduleProperties}        recorder: new RecorderModule(),`;
+    const initializationMarker = `      window.${addonGlobal}.map.setNavModule(window.${addonGlobal}.nav);
+`;
+    const initialization = `${initializationMarker}
+      window.${addonGlobal}.dataCartridge = new DataCartridgeModule();
+      window.${addonGlobal}.radar = new RadarModule({
+        navModule: window.${addonGlobal}.nav,
+        weaponModule: window.${addonGlobal}.weapons
+      });
+      window.${addonGlobal}.targetingPod = new TargetingPodModule(() => window.${addonGlobal});
+      window.${addonGlobal}.flight = new FlightModule(() => window.${addonGlobal});
+      window.${addonGlobal}.nav.setDataCartridgeModule(window.${addonGlobal}.dataCartridge);
+`;
+    const registrationMarker = `      window.${addonGlobal}.system.registerMfdPages(window.${addonGlobal}.mfd);
+`;
+    const registration = `${registrationMarker}      window.${addonGlobal}.radar.registerMfdPages(window.${addonGlobal}.mfd);
+      window.${addonGlobal}.flight.registerMfdPages(window.${addonGlobal}.mfd);
+      window.${addonGlobal}.targetingPod.registerMfdPages(window.${addonGlobal}.mfd);
+`;
+
+    return source
+      .replace(propertyMarker, propertyReplacement)
+      .replace(initializationMarker, initialization)
+      .replace(registrationMarker, registration);
+  }
+
   function generateEntrypointTemplate() {
     const className = state.className || 'NewMainPlugin';
     const pluginGlobal = state.pluginGlobal || className.replace('MainPlugin', 'Plugin');
@@ -296,7 +354,10 @@
 
   function generateOutputs() {
     const patched = patchSourceWithCurrentValues();
-    state.generatedMainPlugin = patched || generateMainPluginTemplate();
+    state.generatedMainPlugin = patched || completeGeneratedMainPlugin(
+      generateMainPluginTemplate(),
+      state.addonGlobal
+    );
     state.generatedEntrypoint = generateEntrypointTemplate();
   }
 
