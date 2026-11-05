@@ -92,6 +92,13 @@ The addon runtime exposes the active addon via BasePlugin:
 window.BasePlugin.getActiveAddon()
 ```
 
+## Self-Hosted MFD Panel & Shaders
+
+We self-host `glassPanel.gltf` and its modified fragment shader (`glassPanel.glsl`) in this repository for two key reasons:
+
+1. **Opaque Rendering:** The default GeoFS glass shader forces a hardcoded `0.4` transparency (`color = vec4(..., 0.4);`), making custom MFD screens translucent. We modified the shader value to `1.0` for a fully opaque canvas background.
+2. **Broken Relative Paths:** Default assets use relative shader paths (`../../../shaders/...`) that break when loaded externally from GitHub. Self-hosting with absolute raw links ensures the engine successfully resolves and compiles the shader.
+
 ### Modules overview
 
 #### `window.BasePlugin.getActiveAddon().lifecycle`
