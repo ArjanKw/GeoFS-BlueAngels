@@ -101,7 +101,7 @@
     "images": {
         "black_jpg": {
             "name": "black_jpg",
-            "uri": "black.jpg"
+            "uri": "https://www.geo-fs.com/models/gauges/glassPanel/black.jpg"
         }
     },
     "materials": {
