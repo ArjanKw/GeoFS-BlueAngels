@@ -231,11 +231,11 @@
     "shaders": {
         "glassPanel0FS": {
             "type": 35632,
-            "uri": "../../../shaders/glassPanel.glsl"
+            "uri": "https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/models/glassPanel.glsl"
         },
         "glassPanel0VS": {
             "type": 35633,
-            "uri": "../../../shaders/baseVS.glsl"
+            "uri": "https://www.geo-fs.com/shaders/baseVS.glsl"
         }
     },
     "skins": {},
