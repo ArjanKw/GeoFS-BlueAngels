@@ -16,7 +16,7 @@ class MfdDisplay {
     MFD_TOP_BUTTON_VISUAL_SCALE: 2 / 3,
     MFD_CLICK_HALF_WIDTH: 0.36,
     MFD_CLICK_HALF_HEIGHT: 0.36,
-    MFD_PART_MODEL_URL: 'models/gauges/glassPanel/glassPanel.gltf'
+    MFD_PART_MODEL_URL: 'https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/models/glassPanel.gltf'
   };
 
   constructor(mfdModule, config = {}) {
@@ -213,6 +213,7 @@ class MfdDisplay {
       ctx.font = `bold ${Math.round(h * 0.18)}px monospace`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
+      
       ctx.fillText('MFD INIT', w / 2, h / 2);
     };
 
@@ -236,14 +237,18 @@ class MfdDisplay {
       model: {
         url: modelUrl,
         shader: {
-          name: 'glassPanel',
+          name: 'generic',
           textures: { diffuse: '' }
-        }
+        },
+        translucent: false,
+        opaque: true
       },
+      safeTransparency: false,
       renderer: {
         name: rendererName,
         width: 512,
         height: 512,
+        enableTransparency: false,
         images: { }
       },
       animations: [{
@@ -283,11 +288,16 @@ class MfdDisplay {
     const nodesByName = part.object3d?.model?._model?._nodesByName;
     if (!nodesByName) return false;
 
-    const glassNode = nodesByName.glassPanel;
-    if (!glassNode) return false;
+    // Flexibele fallback: pak 'glassPanel' of de eerste beschikbare node
+    let targetNode = nodesByName.glassPanel;
+    if (!targetNode) {
+      const keys = Object.keys(nodesByName);
+      if (keys.length > 0) targetNode = nodesByName[keys[0]];
+    }
+    if (!targetNode) return false;
 
-    glassNode.name = nodeName;
-    nodesByName[nodeName] = glassNode;
+    targetNode.name = nodeName;
+    nodesByName[nodeName] = targetNode;
     return true;
   }
 
@@ -377,7 +387,11 @@ class MfdDisplay {
       const nodesByName = mfdPart.object3d?.model?._model?._nodesByName;
       if (!nodesByName) return false;
 
-      const glassNode = nodesByName.glassPanel;
+      let glassNode = nodesByName.glassPanel;
+      if (!glassNode) {
+        const keys = Object.keys(nodesByName);
+        if (keys.length > 0) glassNode = nodesByName[keys[0]];
+      }
       if (!glassNode) return false;
 
       glassNode.name = this.names.MFD_PART_NAME;
@@ -570,7 +584,7 @@ class MfdDisplay {
 
   getProjectedMfdBounds() {
     const aircraft = window.geofs.aircraft.instance;
-    const partObj = aircraft.parts[this.names.MFD_PART_NAME].object3d;
+    const partObj = aircraft.parts[this.names.MFD_PART_NAME]?.object3d;
     const aircraftLla = aircraft.llaLocation;
     if (!partObj || !aircraftLla) return null;
 
@@ -636,7 +650,7 @@ class MfdDisplay {
     const halfW = this.cfg.MFD_CLICK_HALF_WIDTH * this.cfg.MFD_TOP_BUTTON_VISUAL_SCALE;
     const halfH = this.cfg.MFD_CLICK_HALF_HEIGHT * this.cfg.MFD_TOP_BUTTON_VISUAL_SCALE;
     const localCorners = [
-      [-halfW, 0, halfW],
+      [-halfW, 0, halfH],
       [halfW, 0, halfH],
       [-halfW, 0, -halfH],
       [halfW, 0, -halfH]
@@ -823,7 +837,10 @@ class MfdModule {
   }
 
   getDefaultParentPartName() {
-    const hudPart = Object.values(window.geofs.aircraft.instance.parts)
+    const parts = window.geofs?.aircraft?.instance?.parts;
+    if (parts?.cockpit) return 'cockpit';
+
+    const hudPart = Object.values(parts || {})
       .find((part) => part.renderer?.name === 'genericHUD' || part.rendererInstance?.definition?.name === 'genericHUD');
     return hudPart?.parent || 'root';
   }
