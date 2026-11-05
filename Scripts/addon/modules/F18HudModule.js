@@ -1,139 +1,4 @@
-﻿class F18HudProjector {
-    
-    /**
-     * Zet een 3D vector vanuit de camera om naar 2D pixels op het scherm.
-     * Dit gebruikt de engine's eigen matrix, wat de HUD gecollimeerd maakt (vastgepind in de wereld).
-     */
-    static projectAnglesToScreen(scene, cameraPos, trackDeg, pitchDeg, lateralOffsetDeg = 0) {
-        const RAD = Math.PI / 180;
-        const h = trackDeg * RAD;
-        const p = pitchDeg * RAD;
-        const w = lateralOffsetDeg * RAD;
-
-        // 1. Bereken de centrum-vector (bijv. de FPV of het midden van een pitch-lijn)
-        const cosP = Math.cos(p);
-        const eCenter = Math.sin(h) * cosP;
-        const nCenter = Math.cos(h) * cosP;
-        const uCenter = Math.sin(p);
-
-        let finalVec;
-        
-        if (lateralOffsetDeg === 0) {
-            finalVec = new Cesium.Cartesian3(eCenter, nCenter, uCenter);
-        } else {
-            // 2. Bereken de haakse vector voor de lijnen van de Pitch Ladder
-            // Zorgt ervoor dat de lijn ALTIJD parallel is aan de ware aarde-horizon
-            const eRight = Math.cos(h);
-            const nRight = -Math.sin(h);
-            const uRight = 0;
-
-            const tanW = Math.tan(w);
-            finalVec = new Cesium.Cartesian3(
-                eCenter + (eRight * tanW),
-                nCenter + (nRight * tanW),
-                uCenter + (uRight * tanW)
-            );
-        }
-
-        // Normaliseer en schaal naar 'oneindig' (100km ver)
-        Cesium.Cartesian3.normalize(finalVec, finalVec);
-        
-        // 3. Transformeer van lokaal (East-North-Up) naar Wereld (WGS84 ECEF)
-        const enuMatrix = Cesium.Transforms.eastNorthUpToFixedFrame(cameraPos);
-        const worldDir = new Cesium.Cartesian3();
-        Cesium.Matrix4.multiplyByPointAsVector(enuMatrix, finalVec, worldDir);
-
-        const targetPoint = new Cesium.Cartesian3();
-        Cesium.Cartesian3.multiplyByScalar(worldDir, 100000.0, targetPoint);
-        Cesium.Cartesian3.add(cameraPos, targetPoint, targetPoint);
-
-        // 4. Projecteer naar 2D scherm pixels via Cesium
-        const screenPos = Cesium.SceneTransforms.wgs84ToWindowCoordinates(scene, targetPoint);
-        return screenPos; // Geeft {x, y} terug, of undefined als het achter de camera ligt
-    }
-
-    /**
-     * Hoofd-render functie. Aanroepen vanuit je requestAnimationFrame loop.
-     */
-    static renderCollimatedHUD(ctx, canvasWidth, canvasHeight) {
-        const viewer = window.geofs?.api?.viewer;
-        const anim = window.geofs?.animation?.values;
-        if (!viewer || !anim) return;
-
-        const scene = viewer.scene;
-        // Gebruik de EXACTE camera positie voor perfecte parallax (Translation)
-        const cameraPos = scene.camera.positionWC; 
-
-        // Haal vlucht data op. FPV track en climbAngle bepalen exact waar je naartoe gaat
-        const track = anim.track ?? anim.heading360 ?? 0;
-        const climbAngle = anim.climbAngle ?? 0;
-
-        ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-        ctx.strokeStyle = "#00ff88";
-        ctx.lineWidth = 1.5;
-
-        // --- 1. TEKEN DE PITCH LADDER ---
-        // Deze roteert om de FPV-as (track) heen, en loopt van -90 tot +90
-        const ladderHalfWidth = 3.5; // Breedte in graden
-        const ladderGap = 1.2;       // Ruimte rondom FPV
-
-        for (let p = -90; p <= 90; p += 5) {
-            // Sla lijnen over die ver buiten beeld zijn
-            if (Math.abs(p - anim.pitch) > 40) continue;
-
-            // Projecteer linker en rechter punten in 3D
-            const pL_outer = this.projectAnglesToScreen(scene, cameraPos, track, p, -ladderHalfWidth);
-            const pL_inner = this.projectAnglesToScreen(scene, cameraPos, track, p, -ladderGap);
-            const pR_inner = this.projectAnglesToScreen(scene, cameraPos, track, p, ladderGap);
-            const pR_outer = this.projectAnglesToScreen(scene, cameraPos, track, p, ladderHalfWidth);
-
-            if (!pL_outer || !pR_outer) continue;
-
-            ctx.beginPath();
-            if (p === 0) {
-                // Artificial Horizon (breder, doorgetrokken lijn, ononderbroken of klein gat)
-                const horizonL = this.projectAnglesToScreen(scene, cameraPos, track, 0, -12);
-                const horizonR = this.projectAnglesToScreen(scene, cameraPos, track, 0, 12);
-                if (horizonL && horizonR) {
-                    ctx.setLineDash([]);
-                    ctx.moveTo(horizonL.x, horizonL.y);
-                    ctx.lineTo(horizonR.x, horizonR.y);
-                    ctx.stroke();
-                }
-            } else if (p > 0) {
-                // Positieve pitch (Klimmen) - Solide
-                ctx.lineTo(pL_inner.x, pL_inner.y);
-                ctx.moveTo(pR_inner.x, pR_inner.y);
-                ctx.lineTo(pR_outer.x, pR_outer.y);
-                ctx.stroke();
-                // (Je kunt hier eventueel haakjes omlaag tekenen via een kleine pitch offset op de hoeken)
-            } else {
-                // Negatieve pitch (Dalen) - Gestippeld
-                ctx.setLineDash([6, 4]);
-                ctx.moveTo(pL_outer.x, pL_outer.y);
-                ctx.lineTo(pL_inner.x, pL_inner.y);
-                ctx.moveTo(pR_inner.x, pR_inner.y);
-                ctx.lineTo(pR_outer.x, pR_outer.y);
-                ctx.stroke();
-            }
-        }
-        ctx.setLineDash([]);
-
-        // --- 2. TEKEN DE FPV (Flight Path Vector) ---
-        const fpvPos = this.projectAnglesToScreen(scene, cameraPos, track, climbAngle);
-        
-        if (fpvPos) {
-            ctx.beginPath();
-            ctx.arc(fpvPos.x, fpvPos.y, 7, 0, Math.PI * 2);
-            ctx.moveTo(fpvPos.x - 7, fpvPos.y); ctx.lineTo(fpvPos.x - 18, fpvPos.y); // Linker vleugel
-            ctx.moveTo(fpvPos.x + 7, fpvPos.y); ctx.lineTo(fpvPos.x + 18, fpvPos.y); // Rechter vleugel
-            ctx.moveTo(fpvPos.x, fpvPos.y - 7); ctx.lineTo(fpvPos.x, fpvPos.y - 14); // Staart
-            ctx.stroke();
-        }
-    }
-}
-
-class F18HudModule {
+﻿  class F18HudModule {
     static HUD_PHYSICAL_HEIGHT_M = 0.30;
     static HUD_PARALLAX_GAIN = 1.65;
     static CAMERA_TO_HUD_DISTANCE_M = 0.92;
@@ -159,7 +24,6 @@ class F18HudModule {
         relElDeg: 0,
         valid: false
       };
-      this.lastFpvCameraWc = null;
       this.maxG = 1;
     }
 
@@ -324,85 +188,57 @@ class F18HudModule {
       return baseZ + offsetZ;
     }
 
-    computeHudGeometry(w, h, camera) {
-      // 1. De sleutel voor 3D Cockpit HUDs: De verticale kijkhoek van het glas (Combiner FOV).
-      // Een echte F/A-18 HUD beslaat ongeveer 16.5 graden van boven naar beneden op het glas.
-      // -> Ladder te dicht op elkaar? Verlaag dit getal (bijv. naar 14 of 15).
-      // -> Ladder te ver uit elkaar (buiten beeld)? Verhoog dit getal (bijv. naar 18 of 20).
-      const HUD_VERTICAL_FOV_DEG = this.config?.hudFovDeg || 16.5;
-
-      // 2. Bereken pixels per graad direct op basis van de textuurhoogte en het glazen venster
-      const pixelsPerDeg = h / HUD_VERTICAL_FOV_DEG;
-      const pixelsPerDegX = pixelsPerDeg; // Vierkante pixels op de HUD-textuur
-
-      // 3. Optische parallax / Boresight offset (in graden t.o.v. het midden van de textuur).
-      // Omdat de virtuele piloot net iets boven of onder de verlichte projector kan zitten,
-      // kun je hiermee de hele symbologie verticaal uitlijnen met de buitenwereld.
-      // -> Vlieg je vlak (0 fpm) en staat de 0-horizon van de HUD net te LAAG? Maak dit getal positiever.
-      // -> Staat de 0-horizon net te HOOG? Maak dit getal negatiever (bijv. -1.5).
-      const cameraOffsetYDeg = this.config?.cameraOffsetYDeg || 0; 
-      const cameraOffsetPx = cameraOffsetYDeg * pixelsPerDeg;
-
-      // Fictieve focal length behouden voor eventuele interne compatibiliteit in de rest van je script
-      const focalLengthPx = (h / 2) / Math.tan((HUD_VERTICAL_FOV_DEG * (Math.PI / 180)) / 2);
-
-      return { pixelsPerDeg, pixelsPerDegX, cameraOffsetPx, focalLengthPx };
+    computeHudGeometry(w, h) {
+    const hudVerticalFovDeg = 2 * Math.atan((F18HudModule.HUD_PHYSICAL_HEIGHT_M / 2) / F18HudModule.CAMERA_TO_HUD_DISTANCE_M) * F18HudModule.RAD_TO_DEG;
+    const pixelsPerDeg = h / hudVerticalFovDeg;
+    const hudPhysicalWidthM = F18HudModule.HUD_PHYSICAL_HEIGHT_M * (w / h);
+    const hudHorizontalFovDeg = 2 * Math.atan((hudPhysicalWidthM / 2) / F18HudModule.CAMERA_TO_HUD_DISTANCE_M) * F18HudModule.RAD_TO_DEG;
+    const pixelsPerDegX = w / hudHorizontalFovDeg;
+    const cameraDeltaZ = this.getCurrentCameraZ() - this.dependencies.cameraModule?.DEFAULT_HUD_CAMERA_Z;
+    const cameraOffsetDeg = Math.atan2(cameraDeltaZ, F18HudModule.CAMERA_TO_HUD_DISTANCE_M) * F18HudModule.RAD_TO_DEG;
+    const cameraOffsetPx = cameraOffsetDeg * pixelsPerDeg * F18HudModule.HUD_PARALLAX_GAIN;
+    return { pixelsPerDeg, pixelsPerDegX, cameraOffsetPx };
+  
     }
 
-    updateFpvState() {
-    // ── WAAROM DEZE AANPAK ──────────────────────────────────────────────────────
-    // De HUD-canvas is een textuur op het HUD-glas, dat VASTGEZET is aan het
-    // vliegtuig. Het centrum van de canvas (cx, cy) = vliegtuig-boresight (neus).
-    //
-    // De oude code gebruikte camera.viewMatrix om de snelheidsvector naar
-    // camera-ruimte te transformeren. Probleem: als de piloot naar rechts kijkt,
-    // roteert die matrix, en de "rechttoe"-vliegrichting verschijnt LINKS in
-    // camera-ruimte → FPV beweegt naar links op het canvas. Dat is precies het
-    // omgekeerde van correct.
-    //
-    // Correcte aanpak: druk de FPV-afwijking uit t.o.v. de VLIEGTUIGNEUS via
-    // de vliegdata:
-    //   Horizontaal: track − heading  (zijwind / sideslip)
-    //   Verticaal:   climbAngle − pitch  (≈ negatieve α)
-    //
-    // Deze waarden zijn volledig camera-onafhankelijk. Het andere FPV-script
-    // (geo-fs-flight-path-vector.js) plaatst zijn entity precies op dezelfde
-    // richting in de 3D-wereld; onze berekening hier levert exact hetzelfde
-    // resultaat op het canvas.
-    // ────────────────────────────────────────────────────────────────────────────
-
-    const anim = window.geofs?.animation?.values;
-    if (!anim) {
-      this.fpvState = { valid: false, relAzDeg: 0, relElDeg: 0 };
+    updateFpvState(lla, ac) {
+    if (!Array.isArray(lla) || !Number.isFinite(lla[0]) || !Number.isFinite(lla[1]) || !Number.isFinite(lla[2])) {
       return;
     }
 
-    // Minimale snelheid: onder ~10 kts is vluchtdata te onbetrouwbaar
-    const kias = anim.kias ?? anim.ias ?? 0;
-    if (kias < 10) {
-      this.fpvState = { valid: false, relAzDeg: 0, relElDeg: 0 };
-      return;
+    const fpvState = this.fpvState;
+
+    const lat = lla[0];
+    const lon = lla[1];
+    const alt = lla[2];
+
+    if (fpvState.lastLat != null && fpvState.lastLon != null && fpvState.lastAlt != null) {
+      const latRad = lat * Math.PI / 180;
+      const dNorth = (lat - fpvState.lastLat) * 111320;
+      const dEast = (lon - fpvState.lastLon) * (111320 * Math.cos(latRad));
+      const dUp = alt - fpvState.lastAlt;
+      const horizontal = Math.hypot(dNorth, dEast);
+
+      if (horizontal > 0.01 || Math.abs(dUp) > 0.01) {
+        let trackDeg = Math.atan2(dEast, dNorth) * F18HudModule.RAD_TO_DEG;
+        if (trackDeg < 0) trackDeg += 360;
+        const fpaDeg = Math.atan2(dUp, Math.max(horizontal, 1e-6)) * F18HudModule.RAD_TO_DEG;
+
+        const hdgDeg = (window.geofs?.animation?.values?.heading360 ?? window.geofs?.animation?.values?.heading ?? ac.htr?.[0] ?? 0);
+        const pitchDegNow = -(ac.htr[1] || 0);
+
+        fpvState.relAzDeg = this.dependencies.helperModule?.angleDiffDeg?.(hdgDeg, trackDeg) ?? 0;
+        fpvState.relElDeg = fpaDeg - pitchDegNow;
+        fpvState.valid = true;
+      }
     }
 
-    const heading    = anim.heading360 ?? anim.heading ?? 0;
-    const pitch      = anim.pitch ?? 0;
-    const track      = anim.track ?? heading;
-    const climbAngle = anim.climbAngle ?? 0;
+    fpvState.lastLat = lat;
+    fpvState.lastLon = lon;
+    fpvState.lastAlt = alt;
+  
+    }
 
-    // Horizontale FPV-offset t.o.v. neus: sideslip / wind-drift hoek
-    let relAzDeg = track - heading;
-    while (relAzDeg >  180) relAzDeg -= 360;  // normaliseer naar [-180, 180]
-    while (relAzDeg < -180) relAzDeg += 360;
-
-    // Verticale FPV-offset t.o.v. neus: vluchthoek minus neusnicking ≈ −α
-    const relElDeg = climbAngle - pitch;
-
-    this.fpvState = {
-      valid: true,
-      relAzDeg,
-      relElDeg
-    };
-  }
     static drawAoaText(ctx, w, h, aoa) {
     const previousAlign = ctx.textAlign;
     const previousBaseline = ctx.textBaseline;
@@ -415,7 +251,7 @@ class F18HudModule {
   
     }
 
-    static drawBoresight(ctx, cx, cy, cameraOffsetPx, w, h) {
+    static drawBoresight(ctx, cx, symbolCy, pixelsPerDeg, w, h) {
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.strokeStyle = this.DEFAULT_COLOR;
@@ -423,7 +259,7 @@ class F18HudModule {
     ctx.setLineDash([]);
 
     const wx = cx;
-    const wy = cy - cameraOffsetPx;
+    const wy = symbolCy - 1.5 * pixelsPerDeg;
     const ww = w * 0.027;
     const wh = h * 0.016;
     const stub = w * 0.010;
@@ -445,19 +281,16 @@ class F18HudModule {
     ctx.restore();
   }
 
-  static drawPitchLadder(ctx, camera, pitchDeg, fpvState, fpvPos, cx, clipCy, symbolCy, pixelsPerDeg, w, h) {
-    // Bepaal het ankerpunt voor de rotatie en centrering: de FPV (indien geldig), anders als fallback de boresight
-    const anchorX = fpvPos ? fpvPos.x : cx;
-    const anchorY = fpvPos ? fpvPos.y : symbolCy;
-    
-    // De absolute vluchthoek (Flight Path Angle / fpaDeg) van de FPV t.o.v. de horizon.
-    // Dit is de neus-pitch + de relatieve elevatie van de FPV.
-    const fpaDeg = (fpvPos && fpvState?.valid) ? (pitchDeg + (fpvState.relElDeg || 0)) : pitchDeg;
+  static drawPitchLadder(ctx, camera, ac, cx, clipCy, symbolCy, pixelsPerDeg, w, h) {
+    const pitchDeg = -ac.htr[1] || 0;
+    const cameraCompY = symbolCy - clipCy;
+    const horizonOffsetY = pitchDeg * pixelsPerDeg + cameraCompY;
 
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-    // Clip to an approximate physical HUD combiner shape
+    // Clip to an approximate physical HUD combiner shape (wide, angular),
+    // instead of a small circular clip.
     ctx.beginPath();
     ctx.moveTo(w * 0.34, h * 0.06);
     ctx.lineTo(w * 0.66, h * 0.06);
@@ -468,21 +301,19 @@ class F18HudModule {
     ctx.closePath();
     ctx.clip();
 
-    // Verplaats de canvas-oorsprong EXACT naar de FPV en roteer rondom dit punt met de rolhoek
-    ctx.translate(anchorX, anchorY);
+    // Always rotate around the visual center of the HUD, while still applying
+    // camera-height compensation through the vertical ladder offset.
+    ctx.translate(cx, clipCy);
     ctx.rotate(-camera.roll);
+    ctx.translate(0, horizonOffsetY);
     ctx.strokeStyle = this.DEFAULT_COLOR;
     ctx.lineWidth = 1.5;
 
-    // Artificial Horizon (0 graden lijn)
-    // In ons nieuwe FPV-gerichte coördinatenstelsel is (0,0) de FPV.
-    // De horizon ligt op verticale afstand fpaDeg onder/boven de FPV.
-    const horizonOffsetY = fpaDeg * pixelsPerDeg;
-
+    // Horizon line
     ctx.setLineDash([]);
     ctx.beginPath();
-    ctx.moveTo(-w * 0.56, horizonOffsetY);
-    ctx.lineTo(w * 0.56, horizonOffsetY);
+    ctx.moveTo(-w * 0.56, 0);
+    ctx.lineTo(w * 0.56, 0);
     ctx.stroke();
 
     const TICK_RANGE_DEG = 85;
@@ -502,12 +333,9 @@ class F18HudModule {
 
     for (let deg = 5; deg <= TICK_RANGE_DEG; deg += 5) {
       for (const sign of [-1, 1]) {
-        const ladderDeg = sign * deg;
-        // De verticale afstand van deze laddertrede t.o.v. de FPV is het verschil tussen FPA en de ladderhoek
-        const tickY = (fpaDeg - ladderDeg) * pixelsPerDeg;
-        
-        const isBelow = ladderDeg < 0; // Negatieve pitch ligt onder de horizon
-        const tickDir = isBelow ? -1 : 1; // "Stubs" aan de uiteinden wijzen altijd richting de horizon
+        const tickY = sign * deg * pixelsPerDeg;
+        const isBelow = sign > 0;
+        const tickDir = isBelow ? -1 : 1;
 
         ctx.setLineDash(isBelow ? [6, 4] : []);
         ctx.beginPath();
@@ -539,84 +367,25 @@ class F18HudModule {
     ctx.textBaseline = savedBaseline;
     ctx.setLineDash([]);
     ctx.restore();
+  
   }
 
-  computeFpvScreenPosition(camera, cx, cy, pixelsPerDeg, pixelsPerDegX, cameraOffsetPx, w, h) {
-    // Primair pad: exact zelfde principe als geo-fs-flight-path-vector.js
-    // - neem camera delta in wereldruimte
-    // - plaats FPV-punt vooruit langs die vector
-    // - projecteer met Cesium naar window pixels
-    // - schaal window pixels naar HUD-canvas pixels
-    const viewer = window.geofs?.api?.viewer;
-    const scene = viewer?.scene;
-    if (window.Cesium && scene?.camera?.positionWC) {
-      const currWc = scene.camera.positionWC;
+  computeFpvScreenPosition(camera, cx, symbolCy, pixelsPerDeg, pixelsPerDegX) {
+    const fpvState = this.fpvState;
+    if (!fpvState.valid) return null;
 
-      if (!this.lastFpvCameraWc) {
-        this.lastFpvCameraWc = Cesium.Cartesian3.clone(currWc);
-      } else {
-        const deltaWc = Cesium.Cartesian3.subtract(currWc, this.lastFpvCameraWc, new Cesium.Cartesian3());
-        this.lastFpvCameraWc = Cesium.Cartesian3.clone(currWc);
+    const dxBody = -(fpvState.relAzDeg * pixelsPerDegX);
+    const dyBody = -(fpvState.relElDeg * pixelsPerDeg);
+    const cr = Math.cos(-camera.roll);
+    const sr = Math.sin(-camera.roll);
+    const fpvX = cx + (dxBody * cr - dyBody * sr);
+    const fpvY = symbolCy + (dxBody * sr + dyBody * cr);
 
-        const speedSq = Cesium.Cartesian3.magnitudeSquared(deltaWc);
-        const onGround = Boolean(window.geofs?.aircraft?.instance?.groundContact);
-        if (!onGround && speedSq > 1e-7) {
-          const factorRaw = Number(window.howFar);
-          const factor = Number.isFinite(factorRaw) && factorRaw > 0 ? factorRaw : 15;
-
-          const fpvWorld = new Cesium.Cartesian3(
-            currWc.x + (factor * deltaWc.x),
-            currWc.y + (factor * deltaWc.y),
-            currWc.z + (factor * deltaWc.z)
-          );
-
-          const windowPos = Cesium.SceneTransforms.wgs84ToWindowCoordinates(scene, fpvWorld);
-          if (windowPos && Number.isFinite(windowPos.x) && Number.isFinite(windowPos.y)) {
-            const sourceCanvas = viewer.canvas ?? scene.canvas;
-            const sourceW = sourceCanvas?.clientWidth || sourceCanvas?.width || w;
-            const sourceH = sourceCanvas?.clientHeight || sourceCanvas?.height || h;
-
-            if (sourceW > 0 && sourceH > 0) {
-              const x = (windowPos.x / sourceW) * w;
-              const y = (windowPos.y / sourceH) * h;
-              if (Number.isFinite(x) && Number.isFinite(y)) {
-                return { x, y, clamped: false, projected: true };
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // Fallback: hoekgebaseerde projectie t.o.v. boresight.
-    if (!this.fpvState || !this.fpvState.valid) {
-      return { x: cx, y: cy - cameraOffsetPx, clamped: false };
-    }
-
-    // Bereken ongeklemde X en Y op de HUD canvas
-    let x = cx + (this.fpvState.relAzDeg * pixelsPerDegX);
-    let y = (cy - cameraOffsetPx) - (this.fpvState.relElDeg * pixelsPerDeg);
-
-    // Marges van de fysieke HUD-combiner glasranden (in pixels vanaf het midden)
-    const maxMarginX = cx * 0.75; 
-    const maxMarginY = cy * 0.80; 
-
-    let clamped = false;
-
-    // Klem de FPV binnen de grenzen van de HUD
-    if (Math.abs(x - cx) > maxMarginX) {
-      x = cx + Math.sign(x - cx) * maxMarginX;
-      clamped = true;
-    }
-    if (Math.abs(y - (cy - cameraOffsetPx)) > maxMarginY) {
-      y = (cy - cameraOffsetPx) + Math.sign(y - (cy - cameraOffsetPx)) * maxMarginY;
-      clamped = true;
-    }
-
-    return { x, y, clamped, projected: false };
+    return { x: fpvX, y: fpvY };
+  
   }
 
-  static drawFpv(ctx, fpvPos, cx, clipCy, w, h) {
+    static drawFpv(ctx, fpvPos, cx, clipCy, w, h) {
     if (!fpvPos) return null;
     const fpvX = fpvPos.x;
     const fpvY = fpvPos.y;
@@ -769,7 +538,7 @@ class F18HudModule {
     const gPrefixWidth = ctx.measureText(gPrefix).width;
 
     ctx.fillText(`M ${mach.toFixed(2)}`, x, y1);
-    ctx.fillText(`α ${aoa.toFixed(1)}`, x, y2);
+    ctx.fillText(`Î± ${aoa.toFixed(1)}`, x, y2);
     ctx.fillText(gPrefix, x, y3);
     ctx.fillText(gValue.toFixed(1), x + gPrefixWidth, y3);
     // Max G zonder prefix, uitgelijnd op het G-getal.
@@ -1213,137 +982,137 @@ class F18HudModule {
     }
 
     renderF18Hud(renderer) {
-      const o = renderer.canvasAPI.context;
-      const canvas = renderer.canvasAPI.canvas ?? o.canvas;
-      const w = canvas?.width || 512;
-      const h = canvas?.height || 512;
+    const o = renderer.canvasAPI.context;
+    const canvas = renderer.canvasAPI.canvas ?? o.canvas;
+    const w = canvas?.width || 512;
+    const h = canvas?.height || 512;
 
-      const ac = window.geofs?.aircraft?.instance;
-      const anim = window.geofs?.animation?.values ?? {};
-      const camera = window.geofs?.api?.viewer?.camera;
+    const ac = window.geofs?.aircraft?.instance;
+    const anim = window.geofs?.animation?.values ?? {};
+    const camera = window.geofs?.api?.viewer?.camera;
 
-      const kias = window.exponentialSmoothing
-        ? window.exponentialSmoothing('smoothKias', anim.kias ?? 0, 0.1)
-        : (anim.kias ?? 0);
-      const alt = anim.altitude ?? 0;
-      const hdg = anim.heading360 ?? anim.heading ?? 0;
-      const aoa = anim.aoa ?? 0;
-      const mach = Math.round(((window.geofs?.animation?.values?.mach ?? 0) * 100)) / 100;
-      const vsi = Math.round((window.geofs?.animation?.values?.climbrate ?? 0) / 10) * 10;
-      const radioAlt = window.geofs?.animation?.values?.haglFeet ?? 0;
-      const trimScaled = Math.round((window.geofs?.animation?.values?.trim ?? 0) * 100);
-      const trimDisplay = trimScaled === 0 ? 'T T/O' : `T ${trimScaled}`;
-      const currentG = Number.isFinite(anim.loadFactor) ? anim.loadFactor : 1;
-      const navUnit = window.geofs?.nav?.currentNAVUnit ?? null;
-      const autopilot = window.geofs?.autopilot ?? null;
-      const wpnMaster = this.getOption('WPN', 'MASTER', 'OFF');
-      const wpnMode = this.getWpnModeFromOptions();
-      const wpnModeLoadout = this.getWpnModeLoadout(wpnMode);
-      const wpnHudStatus = wpnMaster !== 'OFF'
-        ? {
-            line1: `${wpnMaster === 'SIM' ? 'SIM' : 'ARM'} ${wpnMode}`,
-            line2: this.getSelectedWpnQuantityLine(wpnMode, wpnModeLoadout)
-          }
-        : null;
-      const hudBaseColor = this.getOptionValue('HUD', 'COLOR', F18HudModule.DEFAULT_COLOR);
-      const hudColor = this.applyBrightnessToHexColor(hudBaseColor, this.getMfdBrightnessFactor());
-      const hudLevel = this.getOption('HUD', 'LEVEL', 'FULL');
-      F18HudModule.DEFAULT_COLOR = hudColor;
+    const kias = window.exponentialSmoothing
+      ? window.exponentialSmoothing('smoothKias', anim.kias ?? 0, 0.1)
+      : (anim.kias ?? 0);
+    const alt = anim.altitude ?? 0;
+    const hdg = anim.heading360 ?? anim.heading ?? 0;
+    const aoa = anim.aoa ?? 0;
+    const mach = Math.round(((window.geofs?.animation?.values?.mach ?? 0) * 100)) / 100;
+    const vsi = Math.round((window.geofs?.animation?.values?.climbrate ?? 0) / 10) * 10;
+    const radioAlt = window.geofs?.animation?.values?.haglFeet ?? 0;
+    const trimScaled = Math.round((window.geofs?.animation?.values?.trim ?? 0) * 100);
+    const trimDisplay = trimScaled === 0 ? 'T T/O' : `T ${trimScaled}`;
+    const currentG = Number.isFinite(anim.loadFactor) ? anim.loadFactor : 1;
+    const navUnit = window.geofs?.nav?.currentNAVUnit ?? null;
+    const autopilot = window.geofs?.autopilot ?? null;
+    const wpnMaster = this.getOption('WPN', 'MASTER', 'OFF');
+    const wpnMode = this.getWpnModeFromOptions();
+    const wpnModeLoadout = this.getWpnModeLoadout(wpnMode);
+    const wpnHudStatus = wpnMaster !== 'OFF'
+      ? {
+          line1: `${wpnMaster === 'SIM' ? 'SIM' : 'ARM'} ${wpnMode}`,
+          line2: this.getSelectedWpnQuantityLine(wpnMode, wpnModeLoadout)
+        }
+      : null;
+    const hudBaseColor = this.getOptionValue('HUD', 'COLOR', F18HudModule.DEFAULT_COLOR);
+    const hudColor = this.applyBrightnessToHexColor(hudBaseColor, this.getMfdBrightnessFactor());
+    const hudLevel = this.getOption('HUD', 'LEVEL', 'FULL');
+    F18HudModule.DEFAULT_COLOR = hudColor;
 
-      this.updateWpnRearmState();
+    this.updateWpnRearmState();
 
-      if (currentG > this.maxG) {
-        this.maxG = currentG;
+    if (currentG > this.maxG) {
+      this.maxG = currentG;
+    }
+
+    const helperModule = this.dependencies.helperModule;
+    const navModule = this.getNavModule();
+
+    // Canvas leeg maken met echte transparantie (voorkomt volle groene plaat).
+    o.save();
+    o.setTransform(1, 0, 0, 1, 0, 0);
+    o.clearRect(0, 0, w, h);
+    o.restore();
+
+    // Achtergrond overlay (GeoFS origineel gebruikt e.images.background; hier weglaten
+    // want we willen een glazen HUD zonder achtergrond-sprite).
+
+    o.fillStyle = hudColor;
+    o.strokeStyle = hudColor;
+    o.lineWidth = 2;
+    o.font = `20px sans-serif`;
+
+    // --- Kompasband bovenaan ---
+    if (hudLevel == 'FULL') {
+      F18HudModule.drawTopHeadingScale(o, renderer, hdg, navUnit, helperModule, w, h);
+    }
+
+    // --- Speed + Altitude boxed readouts (meer naar binnen) ---
+    F18HudModule.drawSpeedBox(o, kias, w, h);
+    F18HudModule.drawAltitudeBox(o, alt, w, h);
+
+    // --- Readouts links/rechts rond de boxes ---
+    if (hudLevel !== 'MIN') {
+        F18HudModule.drawLeftReadouts(o, mach, currentG, aoa, this.maxG, autopilot, w, h);
+      F18HudModule.drawRightReadouts(o, vsi, radioAlt, trimDisplay, navUnit, navModule, w, h, wpnHudStatus);
+    }
+
+    // --- Attitude-symbologie (pitch ladder, boresight, FPV, AoA) ---
+    if (camera && ac?.htr) {
+      const cx = w / 2;
+      const cy = h / 2;
+      const clipCy = cy;
+
+      const { pixelsPerDeg, pixelsPerDegX, cameraOffsetPx } = this.computeHudGeometry(w, h);
+      const symbolCy = cy - cameraOffsetPx;
+
+      this.updateFpvState(ac.llaLocation, ac);
+      if (hudLevel == 'FULL') {
+         F18HudModule.drawBoresight(o, cx, symbolCy, pixelsPerDeg, w, h);
       }
+      F18HudModule.drawPitchLadder(o, camera, ac, cx, clipCy, symbolCy, pixelsPerDeg, w, h);
 
-      const helperModule = this.dependencies.helperModule;
-      const navModule = this.getNavModule();
+      const fpvPos = this.computeFpvScreenPosition(camera, cx, symbolCy, pixelsPerDeg, pixelsPerDegX);
+      const fpvDrawn = F18HudModule.drawFpv(o, fpvPos, cx, clipCy, w, h);
+      if (hudLevel !== 'MIN') {
+        F18HudModule.drawIlsDeviationCues(o, fpvDrawn, helperModule, w, h);
+      }
+      const isGearDown = window.controls?.gear?.position < 0.5;
+      F18HudModule.drawAoaBracket(o, fpvDrawn, cx, clipCy, pixelsPerDeg, w, h, aoa, isGearDown);
+    }
 
-      // Canvas leeg maken met echte transparantie (voorkomt volle groene plaat).
+    if (this.isWpnFireFlashVisible()) {
       o.save();
       o.setTransform(1, 0, 0, 1, 0, 0);
-      o.clearRect(0, 0, w, h);
+      o.fillStyle = F18HudModule.DEFAULT_COLOR;
+      o.textAlign = 'center';
+      o.textBaseline = 'middle';
+      o.font = `${Math.round(h * 0.15)}px monospace`;
+      o.fillText(this.getWpnActionFlashLabel(), w * 0.5, h * 0.52);
       o.restore();
-
-      // Achtergrond overlay (GeoFS origineel gebruikt e.images.background; hier weglaten
-      // want we willen een glazen HUD zonder achtergrond-sprite).
-
-      o.fillStyle = hudColor;
-      o.strokeStyle = hudColor;
-      o.lineWidth = 2;
-      o.font = `20px sans-serif`;
-
-      // --- Kompasband bovenaan ---
-      if (hudLevel == 'FULL') {
-        F18HudModule.drawTopHeadingScale(o, renderer, hdg, navUnit, helperModule, w, h);
-      }
-
-      // --- Speed + Altitude boxed readouts (meer naar binnen) ---
-      F18HudModule.drawSpeedBox(o, kias, w, h);
-      F18HudModule.drawAltitudeBox(o, alt, w, h);
-
-      // --- Readouts links/rechts rond de boxes ---
-      if (hudLevel !== 'MIN') {
-          F18HudModule.drawLeftReadouts(o, mach, currentG, aoa, this.maxG, autopilot, w, h);
-        F18HudModule.drawRightReadouts(o, vsi, radioAlt, trimDisplay, navUnit, navModule, w, h, wpnHudStatus);
-      }
-
-      // --- Attitude-symbologie (pitch ladder, boresight, FPV, AoA) ---
-      if (camera && ac?.htr) {
-        const cx = w / 2;
-        const cy = h / 2;
-        const pitchDeg = -(ac.htr[1] || 0);
-
-        const { pixelsPerDeg, pixelsPerDegX, cameraOffsetPx } = this.computeHudGeometry(w, h, camera);
-
-        this.updateFpvState();
-        
-        // 1. Bereken nu EERST de schermpositie van de FPV
-        const fpvPos = this.computeFpvScreenPosition(camera, cx, cy, pixelsPerDeg, pixelsPerDegX, cameraOffsetPx, w, h);
-
-        if (hudLevel == 'FULL') {
-          F18HudModule.drawBoresight(o, cx, cy, cameraOffsetPx, w, h);
-        }
-        
-        // 2. Geef de FPV-state en positie mee aan de pitch ladder
-        F18HudModule.drawPitchLadder(o, camera, pitchDeg, this.fpvState, fpvPos, cx, cy, cy - cameraOffsetPx, pixelsPerDeg, w, h);
-
-        // 3. Teken de FPV zelf en de daaraan gekoppelde symbolen
-        const fpvDrawn = F18HudModule.drawFpv(o, fpvPos, cx, cy, w, h);
-        if (hudLevel !== 'MIN') {
-          F18HudModule.drawIlsDeviationCues(o, fpvDrawn, helperModule, w, h);
-        }
-        const isGearDown = window.controls?.gear?.position < 0.5;
-        F18HudModule.drawAoaBracket(o, fpvDrawn, cx, cy, pixelsPerDeg, w, h, aoa, isGearDown);
-      }
-
-      if (this.isWpnFireFlashVisible()) {
-        o.save();
-        o.setTransform(1, 0, 0, 1, 0, 0);
-        o.fillStyle = F18HudModule.DEFAULT_COLOR;
-        o.textAlign = 'center';
-        o.textBaseline = 'middle';
-        o.font = `${Math.round(h * 0.15)}px monospace`;
-        o.fillText(this.getWpnActionFlashLabel(), w * 0.5, h * 0.52);
-        o.restore();
-      }
-
-      const communicationModule = this.getCommunicationModule();
-      const commHudText = communicationModule?.getHudOverlayText?.();
-      if (commHudText) {
-        o.save();
-        o.setTransform(1, 0, 0, 1, 0, 0);
-        o.fillStyle = F18HudModule.DEFAULT_COLOR;
-        o.textAlign = 'center';
-        o.textBaseline = 'bottom';
-        o.font = `bold ${Math.round(h * 0.038)}px monospace`;
-        const lines = String(commHudText ?? '').split('\n').map((line) => line.trim()).filter(Boolean);
-        const lineHeight = h * 0.045;
-        const startY = h * 0.96 - ((lines.length - 1) * lineHeight);
-        for (let i = 0; i < lines.length; i++) {
-          o.fillText(lines[i], w * 0.5, startY + i * lineHeight);
-        }
-        o.restore();
-      }
     }
+
+    const communicationModule = this.getCommunicationModule();
+    const commHudText = communicationModule?.getHudOverlayText?.();
+    if (commHudText) {
+      o.save();
+      o.setTransform(1, 0, 0, 1, 0, 0);
+      o.fillStyle = F18HudModule.DEFAULT_COLOR;
+      o.textAlign = 'center';
+      o.textBaseline = 'bottom';
+      o.font = `bold ${Math.round(h * 0.038)}px monospace`;
+      const lines = String(commHudText ?? '').split('\n').map((line) => line.trim()).filter(Boolean);
+      const lineHeight = h * 0.045;
+      const startY = h * 0.96 - ((lines.length - 1) * lineHeight);
+      for (let i = 0; i < lines.length; i++) {
+        o.fillText(lines[i], w * 0.5, startY + i * lineHeight);
+      }
+      o.restore();
+    }
+  
+    }
+
   }
+
+
+
