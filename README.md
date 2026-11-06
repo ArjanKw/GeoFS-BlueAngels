@@ -44,21 +44,20 @@ This script improves the F-18 in many ways. It add's a totally reworked F-18 HUD
 ![F-18 add-on](Images/scripts/f-18-addon.png)
 
 ## F-18 v2.1.0
-- [Add this readable script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f18-addon.user.js) to Tampermonkey
-- Or [add this minified version](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f18-addon.user.min.js).
+- Preferred way to install: [Add this script, which automatically updates on newer versions](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/entrypoints/geo-fs-f18-addon.user.js) to Tampermonkey
+- Alternatively: [install the entire script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f18-addon.user.js) or [add this minified version](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f18-addon.user.min.js).
 
 ## F-15 v2.1.0
-- [Add this script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f15-addon.user.js) to Tampermonkey
-- Or [add this minified version](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f15-addon.user.min.js).
-
+- Preferred way to install: [Add this script, which automatically updates on newer versions](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/entrypoints/geo-fs-f15-addon.user.js) to Tampermonkey
+- Alternatively: [install the entire script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f15-addon.user.js) or [add this minified version](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f15-addon.user.min.js).
 
 ## F-16 v2.1.0
-- [Add this script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f16-addon.user.js) to Tampermonkey
-- Or [add this minified version](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f16-addon.user.min.js).
+- Preferred way to install: [Add this script, which automatically updates on newer versions](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/entrypoints/geo-fs-f16-addon.user.js) to Tampermonkey
+- Alternatively: [install the entire script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f16-addon.user.js) or [add this minified version](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f16-addon.user.min.js).
 
 ## Rafale v2.1.0
-- [Add this script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-rafale-addon.user.js) to Tampermonkey
-- Or [add this minified version](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-rafale-addon.user.min.js).
+- Preferred way to install: [Add this script, which automatically updates on newer versions](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/entrypoints/geo-fs-rafale-addon.user.js) to Tampermonkey
+- Alternatively: [install the entire script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-rafale-addon.user.js) or [add this minified version](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-rafale-addon.user.min.js).
 
 ## Mission Planner
 Install [the mission planner](https://github.com/ArjanKw/GeoFS-BlueAngels/raw/refs/heads/main/Scripts/geo-fs-mission-planner.user.js) to create a mission and share it with your aircraft.
