@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         GeoFS F-15 Addon BETA
+// @name         GeoFS F-15 Addon
 // @namespace    https://github.com/ArjanKw/GeoFS-BlueAngels/
-// @version      2.0.0
+// @version      2.1.0
 // @description  Improves the cockpit with custom MFDs, adjustable seat height and more.
 // @match        https://www.geo-fs.com/*
 // @match        https://geo-fs.com/*
@@ -5227,6 +5227,18 @@ class RadarModule {
       ctx.lineWidth = 2;
       ctx.strokeRect(layout.frame.left, layout.frame.top, layout.frame.width, layout.frame.height);
 
+      // renderer.canvasAPI.clear();
+
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.restore();
+
       ctx.fillStyle = color;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -7745,7 +7757,7 @@ window.TargetingPodModule = TargetingPodModule;
   
     }
 
-    static drawBoresight(ctx, cx, cy, cameraOffsetPx, w, h) {
+    static drawBoresight(ctx, cx, symbolCy, pixelsPerDeg, w, h) {
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.strokeStyle = this.DEFAULT_COLOR;
@@ -7753,7 +7765,7 @@ window.TargetingPodModule = TargetingPodModule;
     ctx.setLineDash([]);
 
     const wx = cx;
-    const wy = cy - cameraOffsetPx;
+    const wy = symbolCy - 1.5 * pixelsPerDeg;
     const ww = w * 0.027;
     const wh = h * 0.016;
     const stub = w * 0.010;
@@ -7775,7 +7787,8 @@ window.TargetingPodModule = TargetingPodModule;
     ctx.restore();
   }
 
-  static drawPitchLadder(ctx, camera, pitchDeg, cx, clipCy, symbolCy, pixelsPerDeg, w, h) {
+  static drawPitchLadder(ctx, camera, ac, cx, clipCy, symbolCy, pixelsPerDeg, w, h) {
+    const pitchDeg = -ac.htr[1] || 0;
     const cameraCompY = symbolCy - clipCy;
     const horizonOffsetY = pitchDeg * pixelsPerDeg + cameraCompY;
 
@@ -7794,10 +7807,11 @@ window.TargetingPodModule = TargetingPodModule;
     ctx.closePath();
     ctx.clip();
 
-    // Keep the horizon vertically tied to the real horizon (pitch + camera offset).
-    // Roll only rotates the ladder around that horizon anchor point.
-    ctx.translate(cx, clipCy + horizonOffsetY);
+    // Always rotate around the visual center of the HUD, while still applying
+    // camera-height compensation through the vertical ladder offset.
+    ctx.translate(cx, clipCy);
     ctx.rotate(-camera.roll);
+    ctx.translate(0, horizonOffsetY);
     ctx.strokeStyle = this.DEFAULT_COLOR;
     ctx.lineWidth = 1.5;
 
@@ -7862,17 +7876,16 @@ window.TargetingPodModule = TargetingPodModule;
   
   }
 
-  computeFpvScreenPosition(camera, cx, cy, pixelsPerDeg, pixelsPerDegX, cameraOffsetPx) {
+  computeFpvScreenPosition(camera, cx, symbolCy, pixelsPerDeg, pixelsPerDegX) {
     const fpvState = this.fpvState;
     if (!fpvState.valid) return null;
 
-    const boresightY = cy - cameraOffsetPx;
     const dxBody = -(fpvState.relAzDeg * pixelsPerDegX);
     const dyBody = -(fpvState.relElDeg * pixelsPerDeg);
     const cr = Math.cos(-camera.roll);
     const sr = Math.sin(-camera.roll);
     const fpvX = cx + (dxBody * cr - dyBody * sr);
-    const fpvY = boresightY + (dxBody * sr + dyBody * cr);
+    const fpvY = symbolCy + (dxBody * sr + dyBody * cr);
 
     return { x: fpvX, y: fpvY };
   
@@ -8031,7 +8044,7 @@ window.TargetingPodModule = TargetingPodModule;
     const gPrefixWidth = ctx.measureText(gPrefix).width;
 
     ctx.fillText(`M ${mach.toFixed(2)}`, x, y1);
-    ctx.fillText(`α ${aoa.toFixed(1)}`, x, y2);
+    ctx.fillText(`Î± ${aoa.toFixed(1)}`, x, y2);
     ctx.fillText(gPrefix, x, y3);
     ctx.fillText(gValue.toFixed(1), x + gPrefixWidth, y3);
     // Max G zonder prefix, uitgelijnd op het G-getal.
@@ -8475,134 +8488,140 @@ window.TargetingPodModule = TargetingPodModule;
     }
 
     renderF18Hud(renderer) {
-      const o = renderer.canvasAPI.context;
-      const canvas = renderer.canvasAPI.canvas ?? o.canvas;
-      const w = canvas?.width || 512;
-      const h = canvas?.height || 512;
+    const o = renderer.canvasAPI.context;
+    const canvas = renderer.canvasAPI.canvas ?? o.canvas;
+    const w = canvas?.width || 512;
+    const h = canvas?.height || 512;
 
-      const ac = window.geofs?.aircraft?.instance;
-      const anim = window.geofs?.animation?.values ?? {};
-      const camera = window.geofs?.api?.viewer?.camera;
+    const ac = window.geofs?.aircraft?.instance;
+    const anim = window.geofs?.animation?.values ?? {};
+    const camera = window.geofs?.api?.viewer?.camera;
 
-      const kias = window.exponentialSmoothing
-        ? window.exponentialSmoothing('smoothKias', anim.kias ?? 0, 0.1)
-        : (anim.kias ?? 0);
-      const alt = anim.altitude ?? 0;
-      const hdg = anim.heading360 ?? anim.heading ?? 0;
-      const aoa = anim.aoa ?? 0;
-      const mach = Math.round(((window.geofs?.animation?.values?.mach ?? 0) * 100)) / 100;
-      const vsi = Math.round((window.geofs?.animation?.values?.climbrate ?? 0) / 10) * 10;
-      const radioAlt = window.geofs?.animation?.values?.haglFeet ?? 0;
-      const trimScaled = Math.round((window.geofs?.animation?.values?.trim ?? 0) * 100);
-      const trimDisplay = trimScaled === 0 ? 'T T/O' : `T ${trimScaled}`;
-      const currentG = Number.isFinite(anim.loadFactor) ? anim.loadFactor : 1;
-      const navUnit = window.geofs?.nav?.currentNAVUnit ?? null;
-      const autopilot = window.geofs?.autopilot ?? null;
-      const wpnMaster = this.getOption('WPN', 'MASTER', 'OFF');
-      const wpnMode = this.getWpnModeFromOptions();
-      const wpnModeLoadout = this.getWpnModeLoadout(wpnMode);
-      const wpnHudStatus = wpnMaster !== 'OFF'
-        ? {
-            line1: `${wpnMaster === 'SIM' ? 'SIM' : 'ARM'} ${wpnMode}`,
-            line2: this.getSelectedWpnQuantityLine(wpnMode, wpnModeLoadout)
-          }
-        : null;
-      const hudBaseColor = this.getOptionValue('HUD', 'COLOR', F18HudModule.DEFAULT_COLOR);
-      const hudColor = this.applyBrightnessToHexColor(hudBaseColor, this.getMfdBrightnessFactor());
-      const hudLevel = this.getOption('HUD', 'LEVEL', 'FULL');
-      F18HudModule.DEFAULT_COLOR = hudColor;
+    const kias = window.exponentialSmoothing
+      ? window.exponentialSmoothing('smoothKias', anim.kias ?? 0, 0.1)
+      : (anim.kias ?? 0);
+    const alt = anim.altitude ?? 0;
+    const hdg = anim.heading360 ?? anim.heading ?? 0;
+    const aoa = anim.aoa ?? 0;
+    const mach = Math.round(((window.geofs?.animation?.values?.mach ?? 0) * 100)) / 100;
+    const vsi = Math.round((window.geofs?.animation?.values?.climbrate ?? 0) / 10) * 10;
+    const radioAlt = window.geofs?.animation?.values?.haglFeet ?? 0;
+    const trimScaled = Math.round((window.geofs?.animation?.values?.trim ?? 0) * 100);
+    const trimDisplay = trimScaled === 0 ? 'T T/O' : `T ${trimScaled}`;
+    const currentG = Number.isFinite(anim.loadFactor) ? anim.loadFactor : 1;
+    const navUnit = window.geofs?.nav?.currentNAVUnit ?? null;
+    const autopilot = window.geofs?.autopilot ?? null;
+    const wpnMaster = this.getOption('WPN', 'MASTER', 'OFF');
+    const wpnMode = this.getWpnModeFromOptions();
+    const wpnModeLoadout = this.getWpnModeLoadout(wpnMode);
+    const wpnHudStatus = wpnMaster !== 'OFF'
+      ? {
+          line1: `${wpnMaster === 'SIM' ? 'SIM' : 'ARM'} ${wpnMode}`,
+          line2: this.getSelectedWpnQuantityLine(wpnMode, wpnModeLoadout)
+        }
+      : null;
+    const hudBaseColor = this.getOptionValue('HUD', 'COLOR', F18HudModule.DEFAULT_COLOR);
+    const hudColor = this.applyBrightnessToHexColor(hudBaseColor, this.getMfdBrightnessFactor());
+    const hudLevel = this.getOption('HUD', 'LEVEL', 'FULL');
+    F18HudModule.DEFAULT_COLOR = hudColor;
 
-      this.updateWpnRearmState();
+    this.updateWpnRearmState();
 
-      if (currentG > this.maxG) {
-        this.maxG = currentG;
+    if (currentG > this.maxG) {
+      this.maxG = currentG;
+    }
+
+    const helperModule = this.dependencies.helperModule;
+    const navModule = this.getNavModule();
+
+    // Canvas leeg maken met echte transparantie (voorkomt volle groene plaat).
+    o.save();
+    o.setTransform(1, 0, 0, 1, 0, 0);
+    o.clearRect(0, 0, w, h);
+    o.restore();
+
+    // Achtergrond overlay (GeoFS origineel gebruikt e.images.background; hier weglaten
+    // want we willen een glazen HUD zonder achtergrond-sprite).
+
+    o.fillStyle = hudColor;
+    o.strokeStyle = hudColor;
+    o.lineWidth = 2;
+    o.font = `20px sans-serif`;
+
+    // --- Kompasband bovenaan ---
+    if (hudLevel == 'FULL') {
+      F18HudModule.drawTopHeadingScale(o, renderer, hdg, navUnit, helperModule, w, h);
+    }
+
+    // --- Speed + Altitude boxed readouts (meer naar binnen) ---
+    F18HudModule.drawSpeedBox(o, kias, w, h);
+    F18HudModule.drawAltitudeBox(o, alt, w, h);
+
+    // --- Readouts links/rechts rond de boxes ---
+    if (hudLevel !== 'MIN') {
+        F18HudModule.drawLeftReadouts(o, mach, currentG, aoa, this.maxG, autopilot, w, h);
+      F18HudModule.drawRightReadouts(o, vsi, radioAlt, trimDisplay, navUnit, navModule, w, h, wpnHudStatus);
+    }
+
+    // --- Attitude-symbologie (pitch ladder, boresight, FPV, AoA) ---
+    if (camera && ac?.htr) {
+      const cx = w / 2;
+      const cy = h / 2;
+      const clipCy = cy;
+
+      const { pixelsPerDeg, pixelsPerDegX, cameraOffsetPx } = this.computeHudGeometry(w, h);
+      const symbolCy = cy - cameraOffsetPx;
+
+      this.updateFpvState(ac.llaLocation, ac);
+      if (hudLevel == 'FULL') {
+         F18HudModule.drawBoresight(o, cx, symbolCy, pixelsPerDeg, w, h);
       }
+      F18HudModule.drawPitchLadder(o, camera, ac, cx, clipCy, symbolCy, pixelsPerDeg, w, h);
 
-      const helperModule = this.dependencies.helperModule;
-      const navModule = this.getNavModule();
+      const fpvPos = this.computeFpvScreenPosition(camera, cx, symbolCy, pixelsPerDeg, pixelsPerDegX);
+      const fpvDrawn = F18HudModule.drawFpv(o, fpvPos, cx, clipCy, w, h);
+      if (hudLevel !== 'MIN') {
+        F18HudModule.drawIlsDeviationCues(o, fpvDrawn, helperModule, w, h);
+      }
+      const isGearDown = window.controls?.gear?.position < 0.5;
+      F18HudModule.drawAoaBracket(o, fpvDrawn, cx, clipCy, pixelsPerDeg, w, h, aoa, isGearDown);
+    }
 
-      // Canvas leeg maken met echte transparantie (voorkomt volle groene plaat).
+    if (this.isWpnFireFlashVisible()) {
       o.save();
       o.setTransform(1, 0, 0, 1, 0, 0);
-      o.clearRect(0, 0, w, h);
+      o.fillStyle = F18HudModule.DEFAULT_COLOR;
+      o.textAlign = 'center';
+      o.textBaseline = 'middle';
+      o.font = `${Math.round(h * 0.15)}px monospace`;
+      o.fillText(this.getWpnActionFlashLabel(), w * 0.5, h * 0.52);
       o.restore();
-
-      // Achtergrond overlay (GeoFS origineel gebruikt e.images.background; hier weglaten
-      // want we willen een glazen HUD zonder achtergrond-sprite).
-
-      o.fillStyle = hudColor;
-      o.strokeStyle = hudColor;
-      o.lineWidth = 2;
-      o.font = `20px sans-serif`;
-
-      // --- Kompasband bovenaan ---
-      if (hudLevel == 'FULL') {
-        F18HudModule.drawTopHeadingScale(o, renderer, hdg, navUnit, helperModule, w, h);
-      }
-
-      // --- Speed + Altitude boxed readouts (meer naar binnen) ---
-      F18HudModule.drawSpeedBox(o, kias, w, h);
-      F18HudModule.drawAltitudeBox(o, alt, w, h);
-
-      // --- Readouts links/rechts rond de boxes ---
-      if (hudLevel !== 'MIN') {
-          F18HudModule.drawLeftReadouts(o, mach, currentG, aoa, this.maxG, autopilot, w, h);
-        F18HudModule.drawRightReadouts(o, vsi, radioAlt, trimDisplay, navUnit, navModule, w, h, wpnHudStatus);
-      }
-
-      // --- Attitude-symbologie (pitch ladder, boresight, FPV, AoA) ---
-      if (camera && ac?.htr) {
-        const cx = w / 2;
-        const cy = h / 2;
-        const pitchDeg = -(ac.htr[1] || 0);
-
-        const { pixelsPerDeg, pixelsPerDegX, cameraOffsetPx } = this.computeHudGeometry(w, h);
-
-        this.updateFpvState(ac.llaLocation, ac);
-        if (hudLevel == 'FULL') {
-          F18HudModule.drawBoresight(o, cx, cy, cameraOffsetPx, w, h);
-        }
-        F18HudModule.drawPitchLadder(o, camera, pitchDeg, cx, cy, cy - cameraOffsetPx, pixelsPerDeg, w, h);
-
-        const fpvPos = this.computeFpvScreenPosition(camera, cx, cy, pixelsPerDeg, pixelsPerDegX, cameraOffsetPx);
-        const fpvDrawn = F18HudModule.drawFpv(o, fpvPos, cx, cy, w, h);
-        if (hudLevel !== 'MIN') {
-          F18HudModule.drawIlsDeviationCues(o, fpvDrawn, helperModule, w, h);
-        }
-        const isGearDown = window.controls?.gear?.position < 0.5;
-        F18HudModule.drawAoaBracket(o, fpvDrawn, cx, cy, pixelsPerDeg, w, h, aoa, isGearDown);
-      }
-
-      if (this.isWpnFireFlashVisible()) {
-        o.save();
-        o.setTransform(1, 0, 0, 1, 0, 0);
-        o.fillStyle = F18HudModule.DEFAULT_COLOR;
-        o.textAlign = 'center';
-        o.textBaseline = 'middle';
-        o.font = `${Math.round(h * 0.15)}px monospace`;
-        o.fillText(this.getWpnActionFlashLabel(), w * 0.5, h * 0.52);
-        o.restore();
-      }
-
-      const communicationModule = this.getCommunicationModule();
-      const commHudText = communicationModule?.getHudOverlayText?.();
-      if (commHudText) {
-        o.save();
-        o.setTransform(1, 0, 0, 1, 0, 0);
-        o.fillStyle = F18HudModule.DEFAULT_COLOR;
-        o.textAlign = 'center';
-        o.textBaseline = 'bottom';
-        o.font = `bold ${Math.round(h * 0.038)}px monospace`;
-        const lines = String(commHudText ?? '').split('\n').map((line) => line.trim()).filter(Boolean);
-        const lineHeight = h * 0.045;
-        const startY = h * 0.96 - ((lines.length - 1) * lineHeight);
-        for (let i = 0; i < lines.length; i++) {
-          o.fillText(lines[i], w * 0.5, startY + i * lineHeight);
-        }
-        o.restore();
-      }
     }
+
+    const communicationModule = this.getCommunicationModule();
+    const commHudText = communicationModule?.getHudOverlayText?.();
+    if (commHudText) {
+      o.save();
+      o.setTransform(1, 0, 0, 1, 0, 0);
+      o.fillStyle = F18HudModule.DEFAULT_COLOR;
+      o.textAlign = 'center';
+      o.textBaseline = 'bottom';
+      o.font = `bold ${Math.round(h * 0.038)}px monospace`;
+      const lines = String(commHudText ?? '').split('\n').map((line) => line.trim()).filter(Boolean);
+      const lineHeight = h * 0.045;
+      const startY = h * 0.96 - ((lines.length - 1) * lineHeight);
+      for (let i = 0; i < lines.length; i++) {
+        o.fillText(lines[i], w * 0.5, startY + i * lineHeight);
+      }
+      o.restore();
+    }
+  
+    }
+
   }
+
+
+
 
 
   class CameraModule {
@@ -9677,7 +9696,7 @@ class MfdDisplay {
     MFD_TOP_BUTTON_VISUAL_SCALE: 2 / 3,
     MFD_CLICK_HALF_WIDTH: 0.36,
     MFD_CLICK_HALF_HEIGHT: 0.36,
-    MFD_PART_MODEL_URL: 'models/gauges/glassPanel/glassPanel.gltf'
+    MFD_PART_MODEL_URL: 'https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/models/glassPanel.gltf'
   };
 
   constructor(mfdModule, config = {}) {
@@ -9874,6 +9893,7 @@ class MfdDisplay {
       ctx.font = `bold ${Math.round(h * 0.18)}px monospace`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
+      
       ctx.fillText('MFD INIT', w / 2, h / 2);
     };
 
@@ -9897,14 +9917,18 @@ class MfdDisplay {
       model: {
         url: modelUrl,
         shader: {
-          name: 'glassPanel',
+          name: 'generic',
           textures: { diffuse: '' }
-        }
+        },
+        translucent: false,
+        opaque: true
       },
+      safeTransparency: false,
       renderer: {
         name: rendererName,
         width: 512,
         height: 512,
+        enableTransparency: false,
         images: { }
       },
       animations: [{
@@ -9944,11 +9968,16 @@ class MfdDisplay {
     const nodesByName = part.object3d?.model?._model?._nodesByName;
     if (!nodesByName) return false;
 
-    const glassNode = nodesByName.glassPanel;
-    if (!glassNode) return false;
+    // Flexibele fallback: pak 'glassPanel' of de eerste beschikbare node
+    let targetNode = nodesByName.glassPanel;
+    if (!targetNode) {
+      const keys = Object.keys(nodesByName);
+      if (keys.length > 0) targetNode = nodesByName[keys[0]];
+    }
+    if (!targetNode) return false;
 
-    glassNode.name = nodeName;
-    nodesByName[nodeName] = glassNode;
+    targetNode.name = nodeName;
+    nodesByName[nodeName] = targetNode;
     return true;
   }
 
@@ -10038,7 +10067,11 @@ class MfdDisplay {
       const nodesByName = mfdPart.object3d?.model?._model?._nodesByName;
       if (!nodesByName) return false;
 
-      const glassNode = nodesByName.glassPanel;
+      let glassNode = nodesByName.glassPanel;
+      if (!glassNode) {
+        const keys = Object.keys(nodesByName);
+        if (keys.length > 0) glassNode = nodesByName[keys[0]];
+      }
       if (!glassNode) return false;
 
       glassNode.name = this.names.MFD_PART_NAME;
@@ -10231,7 +10264,7 @@ class MfdDisplay {
 
   getProjectedMfdBounds() {
     const aircraft = window.geofs.aircraft.instance;
-    const partObj = aircraft.parts[this.names.MFD_PART_NAME].object3d;
+    const partObj = aircraft.parts[this.names.MFD_PART_NAME]?.object3d;
     const aircraftLla = aircraft.llaLocation;
     if (!partObj || !aircraftLla) return null;
 
@@ -10297,7 +10330,7 @@ class MfdDisplay {
     const halfW = this.cfg.MFD_CLICK_HALF_WIDTH * this.cfg.MFD_TOP_BUTTON_VISUAL_SCALE;
     const halfH = this.cfg.MFD_CLICK_HALF_HEIGHT * this.cfg.MFD_TOP_BUTTON_VISUAL_SCALE;
     const localCorners = [
-      [-halfW, 0, halfW],
+      [-halfW, 0, halfH],
       [halfW, 0, halfH],
       [-halfW, 0, -halfH],
       [halfW, 0, -halfH]
@@ -10484,7 +10517,10 @@ class MfdModule {
   }
 
   getDefaultParentPartName() {
-    const hudPart = Object.values(window.geofs.aircraft.instance.parts)
+    const parts = window.geofs?.aircraft?.instance?.parts;
+    if (parts?.cockpit) return 'cockpit';
+
+    const hudPart = Object.values(parts || {})
       .find((part) => part.renderer?.name === 'genericHUD' || part.rendererInstance?.definition?.name === 'genericHUD');
     return hudPart?.parent || 'root';
   }

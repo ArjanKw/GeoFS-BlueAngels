@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         GeoFS F-18 Addon BETA
+// @name         GeoFS F-18 Addon
 // @namespace    https://github.com/ArjanKw/GeoFS-BlueAngels/
-// @version      2.0.1
+// @version      2.1.0
 // @description  Improves the cockpit with a new HUD and custom MFDs, adjustable seat height and more.
 // @match        https://www.geo-fs.com/*
 // @match        https://geo-fs.com/*
