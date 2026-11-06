@@ -1,14 +1,6 @@
 (function () {
   'use strict';
 
-  console.log('[AircraftBuilder][generated-main] script started');
-  console.log('[AircraftBuilder][generated-main] dependency state', {
-    BasePlugin: typeof window.BasePlugin,
-    MfdModule: typeof window.MfdModule,
-    OptionModule: typeof window.OptionModule,
-    aircraftClass: 'SU35MainPlugin'
-  });
-
   class SU35MainPlugin extends window.BasePlugin {
     static AIRCRAFT_ID = '18';
     static DEFAULT_MFD_LAYOUT = [
