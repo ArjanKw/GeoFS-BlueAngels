@@ -207,19 +207,21 @@
 
       const modes = window.geofs?.camera?.modes;
       if (!modes) return false;
-      if (!this.isAircraftCameraReady()) return false;
+      if (!this.isAircraftCameraReady()) {
+        return false;
+      }
 
       const cockpitViewPresets = this.getCockpitViewPresets();
       const cameraModeDefinitions = this.getCameraModeDefinitions();
 
       const isCockpitView = window.geofs?.camera?.currentModeName === 'cockpit';
+      if (cockpitViewPresets.length > 0) {
+        if (!this.installCockpitViewControls()) return false;
+      } else {
+        this.removeCockpitViewControls();
+      }
       if (isCockpitView) {
         if (!this.installCameraControls()) return false;
-        if (cockpitViewPresets.length > 0) {
-          if (!this.installCockpitViewControls()) return false;
-        } else {
-          this.removeCockpitViewControls();
-        }
       } else {
         this.removeCameraControls();
         this.removeCockpitViewControls();
