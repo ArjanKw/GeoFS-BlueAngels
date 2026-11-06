@@ -3,9 +3,10 @@
 // @namespace    https://github.com/ArjanKw/GeoFS-BlueAngels/
 // @version      2.1.0
 // @description  Improves the cockpit with custom MFDs, adjustable seat height and more.
-// @match        https://www.geo-fs.com/*
-// @match        https://geo-fs.com/*
-// @match        https://*.geo-fs.com/*
+// @author       Natrium
+// @match        https://geo-fs.com/geofs.php*
+// @match        https://*.geo-fs.com/geofs.php*
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=geo-fs.com
 // @grant        none
 // ==/UserScript==
 
@@ -11350,7 +11351,7 @@ class MfdModule {
 (function () {
   'use strict';
 
-  const VERSION = '2.0.0';
+  const VERSION = '2.1.0';
 
   const PluginCtor = window.F16MainPlugin;
   if (typeof PluginCtor !== 'function') {
