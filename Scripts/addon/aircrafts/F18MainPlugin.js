@@ -190,6 +190,19 @@
       }
     };
 
+    static HUD_COMBINER_CONFIG = {
+      origin: [0, 6.389, 0.712],
+      normal: [0, -0.966, 0.259],
+      right: [1, 0, 0],
+      up: [0, 0.259, 0.966],
+      outline: [
+        [-0.15, -0.15],
+        [0.15, -0.15],
+        [0.15, 0.15],
+        [-0.15, 0.15]
+      ]
+    };
+
     constructor(config = {}) {
       super({ id: 'F18', version: config.version ?? '2.0.0' });
       OptionModule.initializeStorageKey(this.id, 'F18Options');
@@ -222,7 +235,7 @@
         flight: null,
         radar: null,
         targetingPod: null,
-        hud: new F18HudModule(),
+        hud: new F18HudModule({ hudCombinerConfig: F18MainPlugin.HUD_COMBINER_CONFIG }),
         camera: null, // Will be initialized with helper reference
         fmc: new FMCModule(),
         controls: null, // Will be initialized with helper reference
