@@ -14,9 +14,9 @@
     static DEFAULT_MFD_LAYOUT = [
   {
     name: 'LEFT',
-    position: [-0.175, 8.225, 0.919],
+    position: [-0.18, 8.228, 0.919],
     rotation: [12.25, 0, 0],
-    scale: [0.531, 0.32, 0.441],
+    scale: [0.54, 0.381, 0.441],
     defaultPageTitle: 'NAV'
   },
   {
@@ -24,14 +24,14 @@
     position: [0.175, 8.23, 0.919],
     rotation: [14.85, 0, 0],
     scale: [0.531, 0.29, 0.411],
-    defaultPageTitle: 'NAV'
+    defaultPageTitle: 'RDR'
   },
   {
     name: 'CENTER',
     position: [0.211, 8.249, 1.112],
     rotation: [8.2, 0, 0],
     scale: [0.141, 0.2, 0.134],
-    defaultPageTitle: 'NAV'
+    defaultPageTitle: 'FLT'
   }
 ];
 
