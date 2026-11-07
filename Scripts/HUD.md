@@ -19,7 +19,7 @@ The HUD contains several independent concepts that must not be confused:
    - Represents where the nose points.
 
 2. **Flight Path Vector (FPV)**
-   - Represents where the aircraft is actually moving through the air.
+   - Represents where the aircraft is actually moving to.
    - Derived from velocity vector, not aircraft attitude.
    - Can be above, below, left, or right of boresight.
 
@@ -33,21 +33,20 @@ The HUD contains several independent concepts that must not be confused:
 
 ---
 
-# Viewpoint-Dependent HUD Projection (Parallax-correctie)
+# Viewpoint-Dependent HUD Projection (Parallax-correction)
 ![HUD goal](Images/scripts/HUD.png)
 
-## Kernconcept
-De HUD is een fysiek glasvlak dat op een vaste positie in de cockpit is gemonteerd. De horizon en symbolen (zoals de FPV) bevinden zich in de echte 3D-wereld. Om te bepalen waar een symbool op het glas getekend moet worden, moet er een 3D-projectie worden berekend: een denkbeeldige lijn (ray) loopt vanuit de **exacte camerapositie (oogpunt)** door de **3D-richting in de wereld** naar het **vlak van het HUD-glas**.
+## Key concept
+The HUD is a physical glass surface mounted in a fixed position in the cockpit. The horizon and symbols (such as the FPV) are situated in the real 3D world. To determine where a symbol should be drawn on the glass, a 3D projection must be calculated: an imaginary line (ray) runs from the **exact camera position (viewpoint)** through the **3D direction in the world** to the **surface of the HUD glass**.
 
-## Wat er moet gebeuren bij stoel- of kamerveranderingen:
-1. **Vast in de wereld:** Vanuit het perspectief van de vlieger blijft de getekende horizon exact op de echte horizon in de buitenwereld liggen.
-2. **Verschuiving op het glas:** Verandert de positie van de camera (bijvoorbeeld doordat de stoel naar beneden gaat)? Dan verandert de hoek van waaruit je door het glas kijkt. Het snijpunt van jouw kijklijn met het glas verschuift daardoor.
-3. **Correcte rendering:** Als de HUD lager komt te hangen ten opzichte van je hoofd, moet de horizon op het glas juist *hoger* getekend worden om ervoor te zorgen dat deze optisch op exact dezelfde plek in de buitenwereld blijft overlappen.
+## What needs to happen when the seat or room changes:
+1. **Fixed in the world:** From the pilot’s perspective, the drawn horizon remains exactly aligned with the real horizon in the outside world.
+2. **Shift on the glass:** If the camera’s position changes (for example, because the seat is lowered), the angle from which you look through the glass changes. Consequently, the point where your line of sight intersects the glass shifts.
+3. **Correct rendering:** If the HUD is positioned lower relative to your head, the horizon on the glass must actually be drawn *higher* to ensure that it continues to overlap optically at exactly the same point in the outside world.
 
-## Technische benaming
-* **Ray-plane intersection** (straal-vlak snijpunt) vanaf de cameratranslatie naar het combiner-vlak.
-* **Combiner parallax compensation** (compensatie voor parallax op het HUD-kijkglas).
-
+## Technical terms
+* **Ray-plane intersection** (intersection of a ray with a plane) from the camera translation to the combiner plane.
+* **Combiner parallax compensation** (compensation for parallax on the HUD viewing glass).
 
 # Earth Horizon Representation
 
@@ -341,6 +340,8 @@ The implementation must produce the correct result solely from camera projection
 
 No horizon recentering logic is permitted.
 
+Note: tilting the pilot viewpoint (fe. the head looks up without the camera moving higher up) should not shift any projections.
+
 ---
 
 # Requirement 6: Pitch Ladder Generation
@@ -379,21 +380,7 @@ No separate screen-space rotation system may exist.
 
 # Requirement 8: FPV Generation
 
-FPV shall be generated from the actual velocity vector.
-
-Inputs:
-
-- world velocity vector,
-- camera transform,
-- HUD projection geometry.
-
-The FPV must never be calculated from:
-
-- aircraft pitch,
-- aircraft orientation,
-- angle of attack assumptions.
-
-The FPV represents motion direction only.
+FPV shall be calculated in exactly the same way as [this FPV script](geo-fs-flight-path-vector.js), with the only difference that the FPV should only be visible within the limits of the HUD.
 
 ---
 
