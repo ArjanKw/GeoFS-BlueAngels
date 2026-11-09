@@ -7,6 +7,6 @@ in vec3 v_vertex;
 void main(void) {
 
     vec4 color = texture(u_diffuse, v_texcoord0);
-    color = vec4(vec3(color) * color.a, 1);
+    color = vec4(vec3(color) * color.a, 0.8);
     gl_FragColor = color;
 }
