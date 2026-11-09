@@ -24,14 +24,14 @@
     position: [0.259, 4.627, 0.72],
     rotation: [15, 0, 0],
     scale: [0.27, 0.18, 0.275],
-    defaultPageTitle: 'NAV'
+    defaultPageTitle: 'FLT'
   },
   {
-    name: 'CENTER',
+    name: 'AUX1',
     position: [0.364, 4.37, 0.334],
     rotation: [66, 0, 0],
     scale: [0.25, 0.1, 0.235],
-    defaultPageTitle: 'NAV'
+    defaultPageTitle: 'WPN'
   }
 ];
 
