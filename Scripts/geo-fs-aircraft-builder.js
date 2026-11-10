@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GeoFS Aircraft Builder
 // @namespace    https://github.com/ArjanKw/GeoFS-BlueAngels/
-// @version      1.1.0
+// @version      1.2.0
 // @description  Build and tune MainPlugin/entrypoint files for new aircraft add-ons.
 // @author       Natrium
 // @match        https://geo-fs.com/geofs.php*
@@ -13,7 +13,7 @@
 (function () {
   'use strict';
 
-  const MIN_MFD_SCALE = 0.05;
+  const MIN_MFD_SCALE = 0.01;
   let f18PluginInstance = null;
 
   const state = {
@@ -308,7 +308,7 @@
     const className = state.className || 'NewMainPlugin';
     const addonGlobal = state.addonGlobal || className.replace('MainPlugin', 'Addon');
     const pluginId = (state.mainId || className.replace('MainPlugin', '') || 'new').toLowerCase();
-    return `(function () {\n  'use strict';\n\n  class ${className} extends window.BasePlugin {\n    static AIRCRAFT_ID = '${state.aircraftId}';\n    static DEFAULT_MFD_LAYOUT = ${formatCode(cleanMfdLayout(state.mfdLayout))};\n\n    static CAMERA_CONFIG = {\n      cockpitViewPresets: [],\n      cameraModeDefinitions: {}\n    };\n\n    constructor(config = {}) {\n      super({ id: '${pluginId}', version: config.version ?? '2.0.0' });\n      OptionModule.initializeStorageKey(this.id, '${addonGlobal}Options');\n\n      window.${addonGlobal} = {\n        version: this.version,\n        options: {\n          buildKey: OptionModule.buildOptionKey,\n          read: OptionModule.readOptions,\n          write: OptionModule.writeOptions,\n          get: OptionModule.getOption,\n          set: OptionModule.setOption,\n          getValue: OptionModule.getOptionValue\n        },\n        weapons: new WeaponModule({\n          ...window.WeaponModuleDefaults?.fighter,\n          storageKey: '${addonGlobal}WpnState'\n        }),\n        checklists: ChecklistModule.loadDefaults('fighter') ?? new ChecklistModule(),\n        helper: new HelperModule(),\n        map: null,\n        nav: null,\n        communication: new CommunicationModule(),\n        system: new SystemModule(),\n        hud: new F18HudModule(),\n        camera: null,\n        fmc: new FMCModule(),\n        controls: null,\n        recorder: new RecorderModule(),\n        mfd: MfdModule,\n        lifecycle: {\n          start: () => this.start(),\n          stop: () => this.stop(),\n          restart: () => this.restart(),\n          isRunning: () => this.isRunning()\n        }\n      };\n\n      window.${addonGlobal}.camera = new CameraModule(window.${addonGlobal}.helper, ${className}.CAMERA_CONFIG);\n      window.${addonGlobal}.controls = new ControlModule(window.${addonGlobal}.helper);\n      window.${addonGlobal}.nav = new NavModule();\n      window.${addonGlobal}.map = new MapModule();\n      window.${addonGlobal}.nav.setMapModule(window.${addonGlobal}.map);\n      window.${addonGlobal}.map.setNavModule(window.${addonGlobal}.nav);\n\n      window.${addonGlobal}.mfd = new MfdModule(\n        window.${addonGlobal}.helper,\n        window.${addonGlobal}.map,\n        window.${addonGlobal}.camera,\n        window.${addonGlobal}.weapons,\n        window.${addonGlobal}.recorder\n      );\n\n      window.${addonGlobal}.checklists.registerMfdPages(window.${addonGlobal}.mfd);\n      window.${addonGlobal}.nav.registerMfdPages(window.${addonGlobal}.mfd);\n      window.${addonGlobal}.weapons.registerMfdPages(window.${addonGlobal}.mfd);\n      window.${addonGlobal}.hud.registerMfdPages(window.${addonGlobal}.mfd);\n      window.${addonGlobal}.recorder.registerMfdPages(window.${addonGlobal}.mfd);\n      window.${addonGlobal}.communication.registerMfdPages(window.${addonGlobal}.mfd);\n      window.${addonGlobal}.system.registerMfdPages(window.${addonGlobal}.mfd);\n\n      this.setManagedModules([window.${addonGlobal}.controls]);\n    }\n\n    isAircraftActive() {\n      return window.geofs?.aircraft?.instance?.id === ${className}.AIRCRAFT_ID;\n    }\n\n    getMfdPages() {\n      return window.${addonGlobal}.mfd.pageRegistry;\n    }\n\n    tryInstall() {\n      return window.${addonGlobal}.mfd.ensureLoaded();\n    }\n\n    start() {\n      if (!this.startLifecycle()) return;\n      window.${addonGlobal}.mfd.initializeDefaultMfds(${className}.DEFAULT_MFD_LAYOUT);\n      window.${addonGlobal}.mfd.startCameraWatch();\n      this.tickActive();\n    }\n\n    tickActive() {\n      this.runInstallTick('${className}', () => this.tryInstall());\n    }\n\n    stop() {\n      if (!this.stopLifecycle()) return;\n      window.${addonGlobal}.mfd.restore();\n    }\n\n    restart() {\n      this.stop();\n      this.start();\n    }\n\n    isRunning() {\n      return this.running;\n    }\n  }\n\n  window.${className} = ${className};\n})();\n`;
+    return `(function () {\n  'use strict';\n\n  class ${className} extends window.BasePlugin {\n    static AIRCRAFT_ID = '${state.aircraftId}';\n    static DEFAULT_MFD_LAYOUT = ${formatCode(cleanMfdLayout(state.mfdLayout))};\n\n    static CAMERA_CONFIG = {\n      cockpitViewPresets: [],\n      cameraModeDefinitions: {}\n    };\n\n    constructor(config = {}) {\n      super({ id: '${pluginId}', version: config.version ?? '2.0.0' });\n      OptionModule.initializeStorageKey(this.id, '${addonGlobal}Options');\n\n      window.${addonGlobal} = {\n        version: this.version,\n        options: {\n          buildKey: OptionModule.buildOptionKey,\n          read: OptionModule.readOptions,\n          write: OptionModule.writeOptions,\n          get: OptionModule.getOption,\n          set: OptionModule.setOption,\n          getValue: OptionModule.getOptionValue\n        },\n        weapons: new WeaponModule({\n          ...window.WeaponModuleDefaults?.fighter,\n          storageKey: '${addonGlobal}WpnState'\n        }),\n        checklists: ChecklistModule.loadDefaults('fighter') ?? new ChecklistModule(),\n        helper: new HelperModule(),\n        map: null,\n        nav: null,\n        communication: new CommunicationModule(),\n        system: new SystemModule(),\n        hud: new F18HudModule(),\n        camera: null,\n        fmc: new FMCModule(),\n        controls: null,\n        recorder: new RecorderModule(),\n        mfd: MfdModule,\n        lifecycle: {\n          start: () => this.start(),\n          stop: () => this.stop(),\n          restart: () => this.restart(),\n          isRunning: () => this.isRunning()\n        }\n      };\n\n      window.${addonGlobal}.camera = new CameraModule(window.${addonGlobal}.helper, ${className}.CAMERA_CONFIG);\n      window.${addonGlobal}.controls = new ControlModule(window.${addonGlobal}.helper);\n      window.${addonGlobal}.nav = new NavModule();\n      window.${addonGlobal}.map = new MapModule();\n      window.${addonGlobal}.nav.setMapModule(window.${addonGlobal}.map);\n      window.${addonGlobal}.map.setNavModule(window.${addonGlobal}.nav);\n\n      window.${addonGlobal}.mfd = new MfdModule(\n        window.${addonGlobal}.helper,\n        window.${addonGlobal}.map,\n        window.${addonGlobal}.camera,\n        window.${addonGlobal}.weapons,\n        window.${addonGlobal}.recorder\n      );\n\n      window.${addonGlobal}.checklists.registerMfdPages(window.${addonGlobal}.mfd);\n      window.${addonGlobal}.nav.registerMfdPages(window.${addonGlobal}.mfd);\n      window.${addonGlobal}.weapons.registerMfdPages(window.${addonGlobal}.mfd);\n      window.${addonGlobal}.hud.registerMfdPages(window.${addonGlobal}.mfd);\n      window.${addonGlobal}.recorder.registerMfdPages(window.${addonGlobal}.mfd);\n      window.${addonGlobal}.communication.registerMfdPages(window.${addonGlobal}.mfd);\n      window.${addonGlobal}.system.registerMfdPages(window.${addonGlobal}.mfd);\n\n      this.setManagedModules([window.${addonGlobal}.controls]);\n    }\n\n    isAircraftActive() {\n      return window.geofs?.aircraft?.instance?.aircraftRecord.id === ${className}.AIRCRAFT_ID;\n    }\n\n    getMfdPages() {\n      return window.${addonGlobal}.mfd.pageRegistry;\n    }\n\n    tryInstall() {\n      return window.${addonGlobal}.mfd.ensureLoaded();\n    }\n\n    start() {\n      if (!this.startLifecycle()) return;\n      window.${addonGlobal}.mfd.initializeDefaultMfds(${className}.DEFAULT_MFD_LAYOUT);\n      window.${addonGlobal}.mfd.startCameraWatch();\n      this.tickActive();\n    }\n\n    tickActive() {\n      this.runInstallTick('${className}', () => this.tryInstall());\n    }\n\n    stop() {\n      if (!this.stopLifecycle()) return;\n      window.${addonGlobal}.mfd.restore();\n    }\n\n    restart() {\n      this.stop();\n      this.start();\n    }\n\n    isRunning() {\n      return this.running;\n    }\n  }\n\n  window.${className} = ${className};\n})();\n`;
   }
 
   function completeGeneratedMainPlugin(source, addonGlobal) {
@@ -350,7 +350,55 @@ ${moduleProperties}        recorder: new RecorderModule(),`;
     const className = state.className || 'NewMainPlugin';
     const pluginGlobal = state.pluginGlobal || className.replace('MainPlugin', 'Plugin');
 
-    return `// ==UserScript==\n// @name         GeoFS ${className} Entry\n// @namespace    https://github.com/ArjanKw/GeoFS-BlueAngels/\n// @version      2.0.0\n// @description  Entrypoint for ${className}.\n// @match        https://www.geo-fs.com/*\n// @match        https://geo-fs.com/*\n// @match        https://*.geo-fs.com/*\n// @grant        none\n// ==/UserScript==\n\n(function () {\n  'use strict';\n\n  const VERSION = '2.0.0';\n  const PluginCtor = window.${className};\n  if (typeof PluginCtor !== 'function') return;\n\n  const plugin = new PluginCtor({ version: VERSION });\n  window.${pluginGlobal} = plugin;\n  window.BasePlugin.registerPlugin(plugin);\n})();\n`;
+    return `// ==UserScript==\n
+    // @name         GeoFS ${className} Add-on\n
+    // @namespace    https://github.com/ArjanKw/GeoFS-BlueAngels/\n
+    // @description  Improves the cockpit with a new HUD and custom MFDs and more.\n
+    // @version      2.1.0\n
+    // @author       Natrium\n
+    // @description  Entrypoint for ${className}.\n
+    // @match        https://geo-fs.com/geofs.php*\n
+    // @match        https://*.geo-fs.com/geofs.php*\n
+    // @icon         https://www.google.com/s2/favicons?sz=64&domain=geo-fs.com\n
+    // @grant        none\n
+    // @require      https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/core/runtime.js\n
+    // @require      https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/modules/HelperModule.js\n
+    // @require      https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/modules/OptionModule.js\n
+    // @require      https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/modules/WeaponModule.js\n
+    // @require      https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/modules/ChecklistModule.js\n
+    // @require      https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/modules/DataCartridgeModule.js\n
+    // @require      https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/modules/NavModule.js\n
+    // @require      https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/modules/MapModule.js\n
+    // @require      https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/modules/RadarModule.js\n
+    // @require      https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/modules/CommunicationModule.js\n
+    // @require      https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/modules/RecorderModule.js\n
+    // @require      https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/modules/F18MfdUiState.js\n
+    // @require      https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/modules/SystemModule.js\n
+    // @require      https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/modules/FlightModule.js\n
+    // @require      https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/modules/TargetingPodModule.js\n
+    // @require      https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/modules/F18HudModule.js\n
+    // @require      https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/modules/CameraModule.js\n
+    // @require      https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/modules/FMCModule.js\n
+    // @require      https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/modules/ControlModule.js\n
+    // @require      https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/modules/MfdModule.js\n
+    // @require      https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/defaults/WeaponModuleDefaults.js\n
+    // @require      https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/defaults/ChecklistModuleDefaults.js\n
+    // @require      https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/aircrafts/BasePlugin.js\n
+    // @require      https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/aircrafts/${className}.js\n
+    // ==/UserScript==\n
+    \n
+    (function () {\n
+      'use strict';\n
+      \n
+      const VERSION = '2.1.0';\n
+      const PluginCtor = window.${className};\n
+      \n
+      if (typeof PluginCtor !== 'function') return;\n
+      \n
+      const plugin = new PluginCtor({ version: VERSION });\n
+      window.${pluginGlobal} = plugin;\n
+      window.BasePlugin.registerPlugin(plugin);\n
+    })();`;
   }
 
   function generateOutputs() {

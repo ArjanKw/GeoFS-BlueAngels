@@ -9273,9 +9273,7 @@ window.TargetingPodModule = TargetingPodModule;
     }
 
     installCameraControls() {
-      console.log('Installing camera controls');
       if (document.getElementById('f18-hud-camera-controls')) return true;
-      console.log('Creating camera controls wrapper');
       if (!this.helperModule) return false;
 
       const wrapper = document.createElement('div');
@@ -9309,12 +9307,10 @@ window.TargetingPodModule = TargetingPodModule;
       });
 
       if (!upButton || !seatLabelButton || !downButton) return false;
-      console.log('Appending camera controls to wrapper');
 
       wrapper.appendChild(upButton);
       wrapper.appendChild(seatLabelButton);
       wrapper.appendChild(downButton);
-      console.log('Installing camera controls pad');  
       return this.helperModule.installPadControl({
         id: wrapper.id,
         element: wrapper,
@@ -9415,33 +9411,24 @@ window.TargetingPodModule = TargetingPodModule;
 
     ensureLoaded() {
       if (!window.BasePlugin?.getActivePlugin?.()?.isAircraftActive?.()) {
-        console.log('Aircraft is not active');
-        console.log('Removing camera and cockpit view controls'); 
         this.removeCameraControls();
         this.removeCockpitViewControls();
         return false;
       }
 
-      console.log('Aircraft is active');
       const modes = window.geofs?.camera?.modes;
-      console.log('Camera modes:', modes);
       if (!modes) return false;
       if (!this.isAircraftCameraReady()) {
-        console.log('Aircraft camera is not ready');
         return false;
       }
 
       const cockpitViewPresets = this.getCockpitViewPresets();
       const cameraModeDefinitions = this.getCameraModeDefinitions();
-      console.log('Camera mode definitions:', cameraModeDefinitions);
 
       const isCockpitView = window.geofs?.camera?.currentModeName === 'cockpit';
-      console.log('Is cockpit view:', isCockpitView);
       if (cockpitViewPresets.length > 0) {
-        console.log('Installing cockpit view controls');
         if (!this.installCockpitViewControls()) return false;
       } else {
-        console.log('Removing cockpit view controls');
         this.removeCockpitViewControls();
       }
       if (isCockpitView) {
@@ -10297,7 +10284,8 @@ class MfdDisplay {
     MFD_TOP_BUTTON_VISUAL_SCALE: 2 / 3,
     MFD_CLICK_HALF_WIDTH: 0.36,
     MFD_CLICK_HALF_HEIGHT: 0.36,
-    MFD_PART_MODEL_URL: 'https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/models/glassPanel.gltf'
+    MFD_PART_MODEL_URL: 'https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/models/glassPanel.gltf',
+    MFD_TRANSPARENT_PART_MODEL_URL: 'https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/models/glassPanel-transparent.gltf'
   };
 
   constructor(mfdModule, config = {}) {
@@ -10521,15 +10509,15 @@ class MfdDisplay {
           name: 'generic',
           textures: { diffuse: '' }
         },
-        translucent: false,
-        opaque: true
+        translucent: true,
+        opaque: false
       },
-      safeTransparency: false,
+      safeTransparency: true,
       renderer: {
         name: rendererName,
         width: 512,
         height: 512,
-        enableTransparency: false,
+        enableTransparency: true,
         images: { }
       },
       animations: [{
@@ -10558,7 +10546,7 @@ class MfdDisplay {
     return this.ensureIncludeDefinition(
       this.getButtonIncludeKey(partName),
       this.names.MFD_TOP_BUTTON_RENDERER_NAME,
-      `${this.cfg.MFD_PART_MODEL_URL}?v=mfd-button-${encodeURIComponent(partName)}`
+      `${this.cfg.MFD_TRANSPARENT_PART_MODEL_URL}?v=mfd-button-${encodeURIComponent(partName)}`
     );
   }
 

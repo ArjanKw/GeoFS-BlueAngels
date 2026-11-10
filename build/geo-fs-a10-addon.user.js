@@ -10284,7 +10284,8 @@ class MfdDisplay {
     MFD_TOP_BUTTON_VISUAL_SCALE: 2 / 3,
     MFD_CLICK_HALF_WIDTH: 0.36,
     MFD_CLICK_HALF_HEIGHT: 0.36,
-    MFD_PART_MODEL_URL: 'https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/models/glassPanel.gltf'
+    MFD_PART_MODEL_URL: 'https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/models/glassPanel.gltf',
+    MFD_TRANSPARENT_PART_MODEL_URL: 'https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/models/glassPanel-transparent.gltf'
   };
 
   constructor(mfdModule, config = {}) {
@@ -10508,15 +10509,15 @@ class MfdDisplay {
           name: 'generic',
           textures: { diffuse: '' }
         },
-        translucent: false,
-        opaque: true
+        translucent: true,
+        opaque: false
       },
-      safeTransparency: false,
+      safeTransparency: true,
       renderer: {
         name: rendererName,
         width: 512,
         height: 512,
-        enableTransparency: false,
+        enableTransparency: true,
         images: { }
       },
       animations: [{
@@ -10545,7 +10546,7 @@ class MfdDisplay {
     return this.ensureIncludeDefinition(
       this.getButtonIncludeKey(partName),
       this.names.MFD_TOP_BUTTON_RENDERER_NAME,
-      `${this.cfg.MFD_PART_MODEL_URL}?v=mfd-button-${encodeURIComponent(partName)}`
+      `${this.cfg.MFD_TRANSPARENT_PART_MODEL_URL}?v=mfd-button-${encodeURIComponent(partName)}`
     );
   }
 
@@ -11803,14 +11804,14 @@ class MfdModule {
     position: [0.259, 4.627, 0.72],
     rotation: [15, 0, 0],
     scale: [0.27, 0.18, 0.275],
-    defaultPageTitle: 'NAV'
+    defaultPageTitle: 'FLT'
   },
   {
-    name: 'CENTER',
+    name: 'AUX1',
     position: [0.364, 4.37, 0.334],
     rotation: [66, 0, 0],
     scale: [0.25, 0.1, 0.235],
-    defaultPageTitle: 'NAV'
+    defaultPageTitle: 'WPN'
   }
 ];
 

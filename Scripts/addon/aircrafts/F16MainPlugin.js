@@ -1,14 +1,6 @@
 (function () {
   'use strict';
 
-  console.log('[AircraftBuilder][generated-main] script started');
-  console.log('[AircraftBuilder][generated-main] dependency state', {
-    BasePlugin: typeof window.BasePlugin,
-    MfdModule: typeof window.MfdModule,
-    OptionModule: typeof window.OptionModule,
-    aircraftClass: 'F16MainPlugin'
-  });
-
   class F16MainPlugin extends window.BasePlugin {
     static AIRCRAFT_ID = '7';
     static DEFAULT_MFD_LAYOUT = [
