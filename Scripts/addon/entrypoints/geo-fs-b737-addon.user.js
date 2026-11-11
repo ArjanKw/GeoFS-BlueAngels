@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GeoFS Boeing 737 Addon
 // @namespace    https://github.com/ArjanKw/GeoFS-BlueAngels/
-// @version      2.1.0
+// @version      3.0.0
 // @description  Improves the cockpit with a new HUD and custom MFDs, adjustable seat height and more.
 // @author       Natrium
 // @match        https://geo-fs.com/geofs.php*
@@ -85,7 +85,7 @@
     };
 
     constructor(config = {}) {
-      super({ id: 'b737', version: config.version ?? '2.0.0' });
+      super({ id: 'b737', version: config.version ?? '3.0.0' });
       OptionModule.initializeStorageKey(this.id, 'B737AddonOptions');
 
       window.B737Addon = {
@@ -98,10 +98,7 @@
           set: OptionModule.setOption,
           getValue: OptionModule.getOptionValue
         },
-        weapons: new WeaponModule({
-          ...window.WeaponModuleDefaults?.fighter,
-          storageKey: 'B737AddonWpnState'
-        }),
+        weapons: null,
         checklists: ChecklistModule.loadDefaults('fighter') ?? new ChecklistModule(),
         helper: new HelperModule(),
         map: null,

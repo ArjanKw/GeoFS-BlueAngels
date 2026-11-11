@@ -43,31 +43,31 @@ This script improves the F-18 and other fighter aircraft in many ways. It add's 
 
 ![F-18 add-on](Images/scripts/f-18-addon.png)
 
-## F-18 v2.1.0
+## F-18 v3.0.0
 - Preferred way to install: [Add this script, which automatically updates on newer versions](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/entrypoints/geo-fs-f18-addon.user.js) to Tampermonkey
 - Alternatively: [install the entire script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f18-addon.user.js) or [add this minified version](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f18-addon.user.min.js).
 
-## F-15 v2.1.0
+## F-15 v3.0.0
 - Preferred way to install: [Add this script, which automatically updates on newer versions](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/entrypoints/geo-fs-f15-addon.user.js) to Tampermonkey
 - Alternatively: [install the entire script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f15-addon.user.js) or [add this minified version](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f15-addon.user.min.js).
 
-## F-16 v2.1.0
+## F-16 v3.0.0
 - Preferred way to install: [Add this script, which automatically updates on newer versions](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/entrypoints/geo-fs-f16-addon.user.js) to Tampermonkey
 - Alternatively: [install the entire script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f16-addon.user.js) or [add this minified version](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-f16-addon.user.min.js).
 
-## Rafale v2.1.0
+## Rafale v3.0.0
 - Preferred way to install: [Add this script, which automatically updates on newer versions](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/entrypoints/geo-fs-rafale-addon.user.js) to Tampermonkey
 - Alternatively: [install the entire script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-rafale-addon.user.js) or [add this minified version](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-rafale-addon.user.min.js).
 
-## A-10 v2.1.0
+## A-10 v3.0.0
 - Preferred way to install: [Add this script, which automatically updates on newer versions](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/entrypoints/geo-fs-a10-addon.user.js) to Tampermonkey
 - Alternatively: [install the entire script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-a10-addon.user.js) or [add this minified version](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-a10-addon.user.min.js).
 
-## T-38 v2.1.0
+## T-38 v3.0.0
 - Preferred way to install: [Add this script, which automatically updates on newer versions](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/entrypoints/geo-fs-t38-addon.user.js) to Tampermonkey
 - Alternatively: [install the entire script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-t38-addon.user.js) or [add this minified version](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-t38-addon.user.min.js).
 
-## B-737 v2.1.0
+## B-737 v3.0.0
 - Preferred way to install: [Add this script, which automatically updates on newer versions](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/entrypoints/geo-fs-b737-addon.user.js) to Tampermonkey
 - Alternatively: [install the entire script](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-b737-addon.user.js) or [add this minified version](https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/build/geo-fs-b737-addon.user.min.js).
 

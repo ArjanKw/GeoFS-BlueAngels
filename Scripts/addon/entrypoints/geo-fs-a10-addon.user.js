@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GeoFS A-10 Addon
 // @namespace    https://github.com/ArjanKw/GeoFS-BlueAngels/
-// @version      2.1.0
+// @version      3.0.0
 // @description  Improves the cockpit with a new HUD and custom MFDs, adjustable seat height and more.
 // @author       Natrium
 // @match        https://geo-fs.com/geofs.php*
@@ -46,7 +46,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '2.1.0';
+  const VERSION = '3.0.0';
 
   const PluginCtor = window.A10MainPlugin;
   if (typeof PluginCtor !== 'function') {
