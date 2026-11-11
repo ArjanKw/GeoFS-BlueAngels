@@ -94,6 +94,44 @@
       return this;
     }
 
+    /**
+     * Attach optional cross-aircraft capabilities without changing core modules.
+     * Modules are enabled only when explicitly requested by a plugin constructor.
+     */
+    initializeOptionalModules(addon, options = {}) {
+      const weapons = addon?.weapons;
+      const cfg = (value) => (value === true ? {} : value);
+      const wantsCombat = !!(options.weaponHud || options.projectile || options.aaCombat || options.multiplayer);
+      if (!weapons || !window.CombatContext || !(wantsCombat || options.keybind)) {
+        addon.optionalModules = [];
+        return [];
+      }
+
+      // Shared context: every optional module plugs into it, none draws on its own.
+      const combat = new window.CombatContext();
+      combat.weapons = weapons;
+      const modules = [];
+      const add = (name, Module, ...args) => {
+        if (!Module) return null;
+        const instance = new Module(...args);
+        modules.push(instance);
+        addon[name] = instance;
+        return instance;
+      };
+
+      add('weaponOverlay', window.WeaponOverlayModule, combat, cfg(options.overlay) ?? {});
+      add('combatTargets', window.TargetModule, combat, addon);
+      add('weaponAudio', window.WeaponAudioModule, combat, weapons, cfg(options.audio) ?? {});
+      if (options.keybind) add('keybinds', window.KeybindModule, combat, weapons, cfg(options.keybind));
+      if (options.weaponHud) add('weaponHud', window.WeaponHudModule, combat, weapons, cfg(options.weaponHud));
+      if (options.projectile) add('projectile', window.ProjectileModule, combat, weapons, cfg(options.projectile));
+      if (options.aaCombat) add('aaCombat', window.AACombatModule, combat, cfg(options.aaCombat));
+      if (options.multiplayer) add('multiplayer', window.MultiplayerModule, combat, cfg(options.multiplayer));
+
+      addon.combat = combat;
+      addon.optionalModules = modules;
+      return modules;
+    }
     startManagedModules() {
       for (const module of this.managedModules) {
         if (typeof module.start === 'function') {

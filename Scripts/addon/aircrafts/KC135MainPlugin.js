@@ -109,7 +109,7 @@
       window.KC135Addon.flight.registerMfdPages(window.KC135Addon.mfd);
       window.KC135Addon.targetingPod.registerMfdPages(window.KC135Addon.mfd);
 
-      this.setManagedModules([window.KC135Addon.controls]);
+      this.setManagedModules([window.KC135Addon.controls, ...this.initializeOptionalModules(window.KC135Addon, config.optionalModules)]);
     }
 
     isAircraftActive() {

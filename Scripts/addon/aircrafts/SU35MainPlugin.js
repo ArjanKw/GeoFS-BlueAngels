@@ -109,7 +109,10 @@
       window.SU35Addon.flight.registerMfdPages(window.SU35Addon.mfd);
       window.SU35Addon.targetingPod.registerMfdPages(window.SU35Addon.mfd);
 
-      this.setManagedModules([window.SU35Addon.controls]);
+      this.setManagedModules([window.SU35Addon.controls, ...this.initializeOptionalModules(window.SU35Addon, config.optionalModules ?? {
+        keybind: true, weaponHud: { enabled: true }, projectile: true,
+        aaCombat: { enabled: true }, multiplayer: { enabled: true }
+      })]);
     }
 
     isAircraftActive() {

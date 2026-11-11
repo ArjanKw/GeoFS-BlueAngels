@@ -369,9 +369,9 @@ class WeaponModule {
 
         this.FIRE_BLINK_INTERVAL_MS = 500;
         this.FIRE_BLINK_PHASES = 4;
-        this.GUN_FIRE_RATE_RPS = 66;
+        this.GUN_FIRE_RATE_RPS = 100;
         this.GUN_ROUNDS_PER_BURST = 100;
-        this.GUN_FIRE_TICK_MS = Math.max(1, Math.round(1000 / this.GUN_FIRE_RATE_RPS));
+        this.GUN_FIRE_TICK_MS = 16;
         this.REARM_DURATION_MS = 60_000;
 
         this.selectedWeaponByMode = {};
@@ -393,12 +393,17 @@ class WeaponModule {
         this.gunFireState = {
             timerId: null,
             mode: null,
-            roundsRemainingInBurst: 0
+            roundsRemainingInBurst: 0,
+            triggerHeld: false,
+            firing: false,
+            lastTickAt: 0,
+            accumulator: 0
         };
         this.fireFlash = {
             startTime: 0,
             label: 'FIRE'
         };
+        this.listeners = new Map();
 
         this.loadStateFromStorage();
     }
@@ -408,76 +413,94 @@ class WeaponModule {
         {
             "name": "AIM-9X",
             "engagement_window": { "min": 0.2, "max": 18.9 },
-            "effective_range": { "min": 0.5, "max": 8.1 },
-            "max_speed": 2.5
+            "effective_range": { "min": 0.5, "max": 8.1 }
         },
         {
             "name": "AIM-120C",
             "engagement_window": { "min": 1.1, "max": 48.6 },
-            "effective_range": { "min": 10.8, "max": 27.0 },
-            "max_speed": 4.0
+            "effective_range": { "min": 10.8, "max": 27.0 }
         },
         {
             "name": "AIM-120D",
             "engagement_window": { "min": 1.1, "max": 86.4 },
-            "effective_range": { "min": 16.2, "max": 43.2 },
-            "max_speed": 4.0
+            "effective_range": { "min": 16.2, "max": 43.2 }
         },
         {
             "name": "AIM-7M",
             "engagement_window": { "min": 1.1, "max": 37.8 },
-            "effective_range": { "min": 8.1, "max": 21.6 },
-            "max_speed": 4.0
+            "effective_range": { "min": 8.1, "max": 21.6 }
         },
         {
             "name": "R-73",
             "engagement_window": { "min": 0.2, "max": 21.6 },
-            "effective_range": { "min": 0.5, "max": 8.1 },
-            "max_speed": 2.5
+            "effective_range": { "min": 0.5, "max": 8.1 }
         },
         {
             "name": "R-27R",
             "engagement_window": { "min": 1.1, "max": 40.5 },
-            "effective_range": { "min": 10.8, "max": 24.3 },
-            "max_speed": 4.5
+            "effective_range": { "min": 10.8, "max": 24.3 }
         },
         {
             "name": "R-27ER",
             "engagement_window": { "min": 1.1, "max": 70.2 },
-            "effective_range": { "min": 16.2, "max": 37.8 },
-            "max_speed": 5.0
+            "effective_range": { "min": 16.2, "max": 37.8 }
         },
         {
             "name": "R-27T",
             "engagement_window": { "min": 0.5, "max": 21.6 },
-            "effective_range": { "min": 5.4, "max": 16.2 },
-            "max_speed": 4.0
+            "effective_range": { "min": 5.4, "max": 16.2 }
         },
         {
             "name": "R-27ET",
             "engagement_window": { "min": 0.5, "max": 64.8 },
-            "effective_range": { "min": 10.8, "max": 32.4 },
-            "max_speed": 4.0
+            "effective_range": { "min": 10.8, "max": 32.4 }
         },
         {
             "name": "R-77",
             "engagement_window": { "min": 1.1, "max": 43.2 },
-            "effective_range": { "min": 10.8, "max": 27.0 },
-            "max_speed": 4.0
+            "effective_range": { "min": 10.8, "max": 27.0 }
         },
         {
             "name": "R-77-1",
             "engagement_window": { "min": 1.1, "max": 59.4 },
-            "effective_range": { "min": 16.2, "max": 37.8 },
-            "max_speed": 4.5
+            "effective_range": { "min": 16.2, "max": 37.8 }
         },
         {
             "name": "R-77M",
             "engagement_window": { "min": 1.6, "max": 102.6 },
-            "effective_range": { "min": 21.6, "max": 54.0 },
-            "max_speed": 5.0
+            "effective_range": { "min": 21.6, "max": 54.0 }
         }
     ];
+
+    // Shared projectile characteristics taken from the former EEGS script.
+    // Aircraft loadouts select a weapon name; they do not redefine its physics.
+    static projectileMetadataByType = {
+        'AIM-9X': { speed: 850, turnRate: 1.2, maxFlightTime: 30 },
+        'AIM-120C': { speed: 900, turnRate: 1.2, maxFlightTime: 45 },
+        'AIM-120D': { speed: 900, turnRate: 1.2, maxFlightTime: 60 },
+        'AIM-7M': { speed: 850, turnRate: 1.0, maxFlightTime: 45 },
+        'R-73': { speed: 850, turnRate: 1.2, maxFlightTime: 30 },
+        'R-27R': { speed: 900, turnRate: 1.1, maxFlightTime: 45 },
+        'R-27ER': { speed: 950, turnRate: 1.1, maxFlightTime: 55 },
+        'R-27T': { speed: 850, turnRate: 1.1, maxFlightTime: 35 },
+        'R-27ET': { speed: 900, turnRate: 1.1, maxFlightTime: 50 },
+        'R-77': { speed: 900, turnRate: 1.2, maxFlightTime: 45 },
+        'R-77-1': { speed: 950, turnRate: 1.2, maxFlightTime: 50 },
+        'R-77M': { speed: 1000, turnRate: 1.3, maxFlightTime: 60 }
+    };
+
+    // Gun and missile launch constants taken from the former EEGS script.
+    static gunMetadata = {
+        muzzleVelocity: 1050,
+        drag: 0.4,
+        gravity: 9.81,
+        tracerEvery: 5,
+        tracerMinDist: 25,
+        tracerColor: '#eb9800',
+        impactColor: '#707070'
+    };
+
+    static defaultMissileMetadata = { speed: 900, turnRate: 1.2, maxFlightTime: 45, launchSpeed: 850 };
 
     registerMfdPages(mfdModule) {
         mfdModule.registerPage({
@@ -503,6 +526,7 @@ class WeaponModule {
             stateIndex: 0,
             show: () => HelperModule.isAircraftParkedAndCold()
             }
+
         ],
         rightButtons: [
             { key: 'MODE', label: 'MODE', states: ['NAV', 'A/A', 'A/G', 'JETTISON'], stateIndex: 0 },
@@ -820,6 +844,10 @@ class WeaponModule {
 
     startRearm(config) {
         if (this.rearmState.active) return false;
+        if (!HelperModule.isAircraftParkedAndCold()
+            || OptionModule.getOption('WPN', 'MASTER', 'OFF') !== 'OFF') {
+            return false;
+        }
 
         const resolvedConfig = this.resolveTemplateConfig(config);
         const targetByMode = this.getRearmTemplateByMode(resolvedConfig);
@@ -873,66 +901,123 @@ class WeaponModule {
     }
 
     stopGunFireTimer() {
+        const wasFiring = this.gunFireState.firing;
+        this.gunFireState.firing = false;
         if (this.gunFireState.timerId) {
             clearTimeout(this.gunFireState.timerId);
             this.gunFireState.timerId = null;
         }
         this.gunFireState.mode = null;
         this.gunFireState.roundsRemainingInBurst = 0;
+        this.gunFireState.triggerHeld = false;
+        this.gunFireState.accumulator = 0;
+        if (wasFiring) this.emit('gunstate', { firing: false });
     }
 
     processGunFireTick() {
-        if (this.gunFireState.roundsRemainingInBurst <= 0) {
-            this.stopGunFireTimer();
-            return;
-        }
+        const state = this.gunFireState;
+        const now = performance.now();
+        const elapsedSeconds = Math.min(0.2, Math.max(0, (now - state.lastTickAt) / 1000));
+        state.lastTickAt = now;
+        state.accumulator += elapsedSeconds * this.GUN_FIRE_RATE_RPS;
+        let roundsDue = Math.floor(state.accumulator);
+        state.accumulator -= roundsDue;
 
-        const mode = this.gunFireState.mode;
+        const mode = state.mode;
         const modeLoadout = this.getModeLoadout(mode);
-        const currentGun = modeLoadout.gun;
 
-        if (currentGun <= 0) {
+        // Emit one event per round so projectile and multiplayer modules can
+        // reproduce the real gun cadence instead of only seeing the burst.
+        while (roundsDue > 0 && (state.triggerHeld || state.roundsRemainingInBurst > 0)) {
+            if (!(modeLoadout.gun > 0)) break;
+            modeLoadout.gun -= 1;
+            if (!state.triggerHeld) state.roundsRemainingInBurst -= 1;
+            roundsDue -= 1;
+            this.emitFireEvent(mode, { side: 'center', station: 'gun' }, { load: 'GUN' });
+        }
+
+        if (!(modeLoadout.gun > 0)) {
             this.stopGunFireTimer();
             this.selectNextWeapon(mode, modeLoadout, 0);
             this.saveStateToStorage();
             return;
         }
 
-        modeLoadout.gun = currentGun - 1;
-        this.gunFireState.roundsRemainingInBurst -= 1;
-
-        if (modeLoadout.gun <= 0) {
-            this.stopGunFireTimer();
-            this.selectNextWeapon(mode, modeLoadout, 0);
-            this.saveStateToStorage();
-            return;
-        }
-
-        if (this.gunFireState.roundsRemainingInBurst <= 0) {
+        if (!state.triggerHeld && state.roundsRemainingInBurst <= 0) {
             this.stopGunFireTimer();
             this.saveStateToStorage();
             return;
         }
 
-        this.gunFireState.timerId = setTimeout(() => this.processGunFireTick(), this.GUN_FIRE_TICK_MS);
+        state.timerId = setTimeout(() => this.processGunFireTick(), this.GUN_FIRE_TICK_MS);
     }
 
-    ensureGunFireTimerRunning() {
-        if (this.gunFireState.timerId) return;
-        this.gunFireState.timerId = setTimeout(() => this.processGunFireTick(), this.GUN_FIRE_TICK_MS);
-    }
-
-    startGunFire(mode, modeLoadout) {
-        if (!modeLoadout || !Number.isFinite(modeLoadout.gun) || modeLoadout.gun <= 0) return false;
-        const wasIdle = !this.gunFireState.timerId;
-        this.gunFireState.mode = mode;
-        this.gunFireState.roundsRemainingInBurst += this.GUN_ROUNDS_PER_BURST;
-        if (wasIdle) this.processGunFireTick();
-        else this.ensureGunFireTimerRunning();
+    /** Starts the gun timer if idle; the first round is due immediately. */
+    beginGunFireTimer(mode) {
+        const state = this.gunFireState;
+        state.mode = mode;
+        if (state.firing) return;
+        state.lastTickAt = performance.now();
+        state.accumulator = 1;
+        this.emit('gunstate', { firing: true });
         this.triggerFireFlash();
+        state.firing = true;
+        this.processGunFireTick();
+    }
+
+    /** Fires a fixed-size burst (used by the MFD FIRE button). */
+    startGunFire(mode, modeLoadout) {
+        if (!modeLoadout || !Number.isFinite(modeLoadout.gun) || modeLoadout.gun <= 0) {
+            this.emit('dryfire', { weapon: 'GUN' });
+            return false;
+        }
+        this.gunFireState.roundsRemainingInBurst += this.GUN_ROUNDS_PER_BURST;
+        this.beginGunFireTimer(mode);
         return true;
     }
 
+    /** Fires continuously until `releaseTrigger()` (used by the keyboard trigger). */
+    startGunTrigger(mode, modeLoadout) {
+        if (!modeLoadout || !Number.isFinite(modeLoadout.gun) || modeLoadout.gun <= 0) {
+            this.emit('dryfire', { weapon: 'GUN' });
+            return false;
+        }
+        this.gunFireState.triggerHeld = true;
+        this.beginGunFireTimer(mode);
+        return true;
+    }
+
+    /**
+     * Pulls the trigger for the selected weapon: guns fire while held, missiles
+     * launch once. Returns false when nothing was fired (master off, no lock ...).
+     */
+    pressTrigger() {
+        const mode = OptionModule.getOption('WPN', 'MODE', 'NAV');
+        if (mode === 'NAV' || mode === 'JETTISON') {
+            this.emit('blocked', { reason: 'mode', mode });
+            return false;
+        }
+        if (OptionModule.getOption('WPN', 'MASTER', 'OFF') === 'OFF') {
+            this.emit('blocked', { reason: 'master' });
+            return false;
+        }
+        const modeLoadout = this.getModeLoadout(mode);
+        let selected = this.ensureSelectedWeapon(mode, modeLoadout);
+        if (!selected && this.selectNextWeapon(mode, modeLoadout, 0)) {
+            selected = this.ensureSelectedWeapon(mode, modeLoadout);
+        }
+        if (selected?.station === 'gun') return this.startGunTrigger(mode, modeLoadout);
+        return this.fireSelectedWeapon(mode, modeLoadout);
+    }
+
+    releaseTrigger() {
+        if (!this.gunFireState.triggerHeld) return;
+        this.gunFireState.triggerHeld = false;
+        if (this.gunFireState.roundsRemainingInBurst <= 0) {
+            this.stopGunFireTimer();
+            this.saveStateToStorage();
+        }
+    }
     triggerActionFlash(label = 'FIRE') {
         this.fireFlash.startTime = Date.now();
         this.fireFlash.label = label;
@@ -1052,7 +1137,9 @@ class WeaponModule {
     }
 
     hasRadarHardLock() {
-        return !!window.BasePlugin?.getActiveAddon?.()?.radar?.hardLockedUid;
+        const addon = window.BasePlugin?.getActiveAddon?.();
+        if (addon?.combat?.targets) return addon.combat.targets.hasLock();
+        return !!addon?.radar?.hardLockedUid;
     }
 
     selectNextWeapon(mode, modeLoadout, minimumQuantity = 0) {
@@ -1064,6 +1151,24 @@ class WeaponModule {
 
         for (let step = 1; step <= this.STATION_RENDER_ORDER.length; step++) {
             const index = (currentIndex + step) % this.STATION_RENDER_ORDER.length;
+            const candidate = this.STATION_RENDER_ORDER[index];
+            if (!this.canUseStationForMode(mode, modeLoadout, candidate.side, candidate.station, minimumQuantity)) continue;
+            this.selectedWeaponByMode[mode] = { side: candidate.side, station: candidate.station };
+            this.saveStateToStorage();
+            return true;
+        }
+        return false;
+    }
+
+    selectPreviousWeapon(mode, modeLoadout, minimumQuantity = 0) {
+        if (!modeLoadout) return false;
+        const current = this.ensureSelectedWeapon(mode, modeLoadout);
+        const currentIndex = current
+            ? this.STATION_RENDER_ORDER.findIndex((s) => s.side === current.side && s.station === current.station)
+            : 0;
+        for (let step = 1; step <= this.STATION_RENDER_ORDER.length; step += 1) {
+            const index = (currentIndex - step + this.STATION_RENDER_ORDER.length)
+                % this.STATION_RENDER_ORDER.length;
             const candidate = this.STATION_RENDER_ORDER[index];
             if (!this.canUseStationForMode(mode, modeLoadout, candidate.side, candidate.station, minimumQuantity)) continue;
             this.selectedWeaponByMode[mode] = { side: candidate.side, station: candidate.station };
@@ -1103,9 +1208,47 @@ class WeaponModule {
         return false;
     }
 
+    /** Subscribe to weapon lifecycle events. Returns an unsubscribe function. */
+    on(eventName, listener) {
+        if (typeof listener !== 'function') return () => {};
+        if (!this.listeners.has(eventName)) this.listeners.set(eventName, new Set());
+        this.listeners.get(eventName).add(listener);
+        return () => this.off(eventName, listener);
+    }
+
+    off(eventName, listener) {
+        this.listeners.get(eventName)?.delete(listener);
+    }
+
+    emit(eventName, payload) {
+        for (const listener of this.listeners.get(eventName) ?? []) {
+            try { listener(payload); } catch (error) { console.error(`[WeaponModule] ${eventName} listener failed`, error); }
+        }
+    }
+
+    emitFireEvent(mode, selected, station) {
+        const load = station?.load ?? (selected?.station === 'gun' ? 'GUN' : null);
+        const profile = load
+            ? WeaponModule.effectivenessByType.find((item) => item.name === load)
+            : null;
+        const projectile = load === 'GUN'
+            ? { ...WeaponModule.gunMetadata }
+            : { ...WeaponModule.defaultMissileMetadata, ...(WeaponModule.projectileMetadataByType[load] ?? {}) };
+        this.emit('fire', {
+            mode,
+            selected: selected ? { ...selected } : null,
+            weapon: load,
+            metadata: {
+                engagement_window: profile ? { ...profile.engagement_window } : null,
+                effective_range: profile ? { ...profile.effective_range } : null,
+                projectile
+            }
+        });
+    }
     fireSelectedWeapon(mode, modeLoadout) {
         if (!modeLoadout) return false;
         if (mode === 'NAV' || mode === 'JETTISON') return false;
+        if (OptionModule.getOption('WPN', 'MASTER', 'OFF') === 'OFF') return false;
 
         let selected = this.ensureSelectedWeapon(mode, modeLoadout);
         if (!selected) {
@@ -1115,12 +1258,16 @@ class WeaponModule {
         }
 
         if (selected.station === 'gun') return this.startGunFire(mode, modeLoadout);
-        if (!this.hasRadarHardLock()) return false;
+        if (!this.hasRadarHardLock()) {
+            this.emit('blocked', { reason: 'lock' });
+            return false;
+        }
 
         const station = modeLoadout?.[selected.side]?.[selected.station];
         if (!station || !Number.isFinite(station.quantity)) return false;
 
         if (station.quantity <= 0) {
+            this.emit('dryfire', { weapon: station.load });
             if (!this.selectSameWeaponHardpoint(mode, modeLoadout, selected)) {
                 this.selectNextWeapon(mode, modeLoadout, 0);
             }
@@ -1129,6 +1276,7 @@ class WeaponModule {
 
         station.quantity -= 1;
         this.triggerFireFlash();
+        this.emitFireEvent(mode, selected, station);
         this.saveStateToStorage();
 
         if (station.quantity <= 0) {
@@ -1156,6 +1304,7 @@ class WeaponModule {
         if (!station || !Number.isFinite(station.quantity)) return false;
 
         if (station.quantity <= 0) {
+            this.emit('dryfire', { weapon: station.load });
             if (!this.selectSameWeaponHardpoint(mode, modeLoadout, selected)) {
                 this.selectNextWeapon(mode, modeLoadout, 0);
             }
@@ -1172,6 +1321,3074 @@ class WeaponModule {
         return true;
     }
 }
+
+(function () {
+  'use strict';
+
+  /**
+   * Shared math, geodesy and GeoFS options-panel helpers used by the combat
+   * modules (overlay, projectiles, A/A simulation, multiplayer ...).
+   * Everything here is stateless; it is a straight extraction of the helper
+   * functions of the former f16eegs.js script.
+   */
+  class CombatMath {
+    static DEG = Math.PI / 180;
+    static R_EARTH = 6378137;
+    static NM = 1852;
+
+    // ---- 3-vector helpers (plain arrays) ----
+    static dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+    static cross(a, b) {
+      return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+    }
+    static add(a, b) { return [a[0] + b[0], a[1] + b[1], a[2] + b[2]]; }
+    static mul(a, s) { return [a[0] * s, a[1] * s, a[2] * s]; }
+
+    // ---- Heading / geodesy helpers ----
+    static normalizeHeading(heading) {
+      return ((heading % 360) + 360) % 360;
+    }
+
+    /** Signed shortest angular difference (degrees) from `from` to `to`. */
+    static angleDifference(from, to) {
+      return ((to - from + 540) % 360) - 180;
+    }
+
+    /** Moves a lat/lon point by a north/east offset in meters. */
+    static moveGeoPoint(lat, lon, northMeters, eastMeters) {
+      const latitudeRad = lat * CombatMath.DEG;
+      const nextLat = lat + northMeters / CombatMath.R_EARTH / CombatMath.DEG;
+      const longitudeScale = Math.max(0.01, Math.cos(latitudeRad));
+      const nextLon = lon + eastMeters / (CombatMath.R_EARTH * longitudeScale) / CombatMath.DEG;
+      return { lat: nextLat, lon: nextLon };
+    }
+
+    /** Great-circle bearing (deg) and 3D distance (m) from `own` [lat, lon, alt] to a point. */
+    static bearingAndDistance(own, lat, lon, alt) {
+      const deg = CombatMath.DEG;
+      const dLat = (lat - own[0]) * deg;
+      const dLon = (lon - own[1]) * deg;
+      const lat1 = own[0] * deg;
+      const lat2 = lat * deg;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+      const groundDistance = 2 * CombatMath.R_EARTH * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const distance = Math.hypot(groundDistance, alt - own[2]);
+      const y = Math.sin(dLon) * Math.cos(lat2);
+      const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+      const bearing = CombatMath.normalizeHeading(Math.atan2(y, x) / deg);
+      return { bearing, distance };
+    }
+
+    // ---- Cesium helpers ----
+    /** Transforms an ENU-frame point into world (ECEF) coordinates. */
+    static worldPosition(enuMat, p) {
+      return Cesium.Matrix4.multiplyByPoint(
+        enuMat, new Cesium.Cartesian3(p[0], p[1], p[2]), new Cesium.Cartesian3());
+    }
+
+    /** Projects a world position to Cesium window coordinates (version independent). */
+    static projectWorld(scene, world) {
+      const fn = Cesium.SceneTransforms.worldToWindowCoordinates
+        || Cesium.SceneTransforms.wgs84ToWindowCoordinates;
+      return fn.call(Cesium.SceneTransforms, scene, world);
+    }
+
+    /** Rotates `velocity` towards `desired` by at most `maxAngle` radians, keeping its speed. */
+    static turnVelocity(velocity, desired, maxAngle) {
+      const { dot, cross, add, mul } = CombatMath;
+      const speed = Math.hypot(velocity[0], velocity[1], velocity[2]);
+      const desiredSpeed = Math.hypot(desired[0], desired[1], desired[2]);
+      if (speed < 1e-6 || desiredSpeed < 1e-6) return velocity;
+
+      const current = mul(velocity, 1 / speed);
+      const target = mul(desired, 1 / desiredSpeed);
+      const cosine = Math.max(-1, Math.min(1, dot(current, target)));
+      const angle = Math.acos(cosine);
+      if (angle < 1e-6) return mul(target, speed);
+
+      const axisVector = cross(current, target);
+      const axisLength = Math.hypot(axisVector[0], axisVector[1], axisVector[2]);
+      let axis;
+      if (axisLength < 1e-6) {
+        axis = cross(current, Math.abs(current[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0]);
+        const length = Math.hypot(axis[0], axis[1], axis[2]);
+        axis = mul(axis, 1 / length);
+      } else {
+        axis = mul(axisVector, 1 / axisLength);
+      }
+
+      const turn = Math.min(angle, maxAngle);
+      const c = Math.cos(turn);
+      const s = Math.sin(turn);
+      const rotated = add(add(mul(current, c), mul(cross(axis, current), s)),
+        mul(axis, dot(axis, current) * (1 - c)));
+      return mul(rotated, speed);
+    }
+
+    // ---- GeoFS Options -> General helpers ----
+
+    /**
+     * Finds the "General" section of the GeoFS preferences and returns the
+     * fieldset with the given class, creating it (with legend and optional
+     * instructions) when missing. Returns null while the panel is not in the DOM.
+     */
+    static ensureGeneralFieldset(className, legendText, instructionsText) {
+      const preferences = document.querySelector('.geofs-preferences');
+      const general = preferences?.querySelector(':scope > li:first-of-type > .geofs-collapsible');
+      if (!general) return null;
+
+      let fieldset = general.querySelector(`.${className}`);
+      let created = false;
+      if (!fieldset) {
+        created = true;
+        fieldset = document.createElement('fieldset');
+        fieldset.className = className;
+        const legend = document.createElement('legend');
+        legend.textContent = legendText;
+        fieldset.appendChild(legend);
+        if (instructionsText) {
+          const instructions = document.createElement('p');
+          instructions.textContent = instructionsText;
+          instructions.style.margin = '8px 0';
+          fieldset.appendChild(instructions);
+        }
+        const controls = document.createElement('div');
+        controls.className = `${className}-controls`;
+        fieldset.appendChild(controls);
+        general.appendChild(fieldset);
+      }
+      return { fieldset, controls: fieldset.querySelector(`.${className}-controls`), created };
+    }
+
+    /** Creates a GeoFS (Material Design Lite) styled button that does not leak clicks. */
+    static makeButton(text, ariaLabel, onClick, disabled = false) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'mdl-button mdl-js-button mdl-button--raised mdl-button--colored';
+      button.textContent = text;
+      button.setAttribute('aria-label', ariaLabel);
+      button.disabled = disabled;
+      button.addEventListener('click', (event) => event.stopPropagation());
+      button.addEventListener('click', onClick);
+      return button;
+    }
+
+    /** Creates a labelled <select> returning a numeric value through `onChange`. */
+    static makeSelect(labelText, value, values, onChange, ariaLabel, formatOption = String) {
+      const label = document.createElement('label');
+      label.style.display = 'flex';
+      label.style.alignItems = 'center';
+      label.style.gap = '6px';
+      label.textContent = labelText;
+      const select = document.createElement('select');
+      select.setAttribute('aria-label', ariaLabel);
+      for (const optionValue of values) {
+        const option = document.createElement('option');
+        option.value = String(optionValue);
+        option.textContent = formatOption(optionValue);
+        select.appendChild(option);
+      }
+      select.value = String(value);
+      select.addEventListener('change', (event) => {
+        event.stopPropagation();
+        onChange(Number(select.value));
+      });
+      select.addEventListener('click', (event) => event.stopPropagation());
+      label.appendChild(select);
+      return label;
+    }
+
+    /** Reads a JSON value from localStorage, returning `fallback` on any failure. */
+    static readStorage(key, fallback = null) {
+      try {
+        const raw = window.localStorage.getItem(key);
+        return raw === null ? fallback : JSON.parse(raw);
+      } catch (error) {
+        return fallback;
+      }
+    }
+
+    /** Writes a JSON value to localStorage; returns false on failure. */
+    static writeStorage(key, value) {
+      try {
+        window.localStorage.setItem(key, JSON.stringify(value));
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+  }
+
+  /**
+   * Registry that lets the optional combat modules find each other without
+   * hard dependencies. Every module registers itself (`combat.projectile = this`)
+   * and looks up its collaborators lazily, so any subset can be enabled.
+   */
+  class CombatContext {
+    constructor() {
+      this.weapons = null;
+      this.overlay = null;
+      this.targets = null;
+      this.audio = null;
+      this.projectile = null;
+      this.aaCombat = null;
+      this.multiplayer = null;
+      this.notifyListeners = new Set();
+    }
+
+    /** Subscribes to short status messages (e.g. "TARGET LOCKED"). Returns an unsubscribe function. */
+    onNotify(listener) {
+      this.notifyListeners.add(listener);
+      return () => this.notifyListeners.delete(listener);
+    }
+
+    /**
+     * Publishes a status message. Nothing is drawn by default: the HUD/MFD of the
+     * plugin decides how (and whether) to present it.
+     */
+    notify(text, durationMs = 2000) {
+      for (const listener of this.notifyListeners) {
+        try { listener(text, durationMs); } catch (error) { console.error('[Combat] notify listener failed', error); }
+      }
+    }
+  }
+
+  window.CombatMath = CombatMath;
+  window.CombatContext = CombatContext;
+})();
+
+(function () {
+  'use strict';
+
+  const { dot, cross, add, mul, DEG, R_EARTH } = CombatMath;
+
+  /**
+   * Full-screen 2D canvas that sits above the Cesium view (just below the GeoFS
+   * UI) and is the common drawing surface of all combat modules. It was the
+   * `frame()` loop of the former f16eegs.js script; the actual content is now
+   * drawn by "layers" that other modules register (countermeasures, missiles,
+   * gun funnel, A/A radar ...).
+   *
+   * Per frame it computes a shared `frame` context: aircraft body axes in the
+   * camera ENU frame, velocity, angular rate, projection helpers and the
+   * HUD clip mask, and hands it to every registered layer in priority order.
+   */
+  class WeaponOverlayModule {
+    constructor(combat, config = {}) {
+      this.combat = combat;
+      combat.overlay = this;
+      this.cfg = {
+        color: '#94ffaf',
+        maskBottom: 0.62,          // HUD content is clipped at this fraction of the viewport height
+        lineDeg: 0.12,             // HUD line width in degrees of view
+        hudOffset: { x: 0, y: 0 }, // pixel offset applied to HUD projections
+        cockpitOnly: true,         // HUD graphics are only shown from a cockpit camera
+        orientationSource: 'aircraft',
+        zIndex: 9,                 // just below the GeoFS UI
+        enabled: true,
+        ...config
+      };
+      this.enabled = this.cfg.enabled;
+      this.canvas = null;
+      this.ctx = null;
+      this.dpr = 1;
+      this.rafId = null;
+      this.layers = [];
+      this.aircraftChangeListeners = new Set();
+      this.lastFrameTime = 0;
+      this.lastInstance = null;
+      this.frameContext = null;
+
+      // Motion estimation state (aircraft velocity and angular rate in ENU).
+      this.vel = [0, 0, 0];
+      this.omega = [0, 0, 0];
+      this.lastPos = null;
+      this.lastT = 0;
+      this.prevAxes = null;
+
+      // Body-axes sign-convention solver (scores all 8 sign combinations against the camera).
+      this.combos = [];
+      for (const hs of [1, -1]) for (const ps of [1, -1]) for (const rs of [1, -1]) this.combos.push([hs, ps, rs]);
+      this.scores = this.combos.map(() => 0);
+      this.best = 0;
+
+      /** Shared list of short-lived impact flashes: { pos: Cartesian3, t0 }. */
+      this.impacts = [];
+
+      this.onResize = () => this.resize();
+      this.frame = () => this.renderFrame();
+    }
+
+    // ---- Lifecycle ----
+
+    start() {
+      if (this.canvas) return;
+      this.canvas = document.createElement('canvas');
+      Object.assign(this.canvas.style, {
+        position: 'fixed', left: '0', top: '0', width: '100vw', height: '100vh',
+        pointerEvents: 'none', zIndex: String(this.cfg.zIndex)
+      });
+      document.body.appendChild(this.canvas);
+      this.ctx = this.canvas.getContext('2d');
+      this.resize();
+      window.addEventListener('resize', this.onResize);
+      this.rafId = requestAnimationFrame(this.frame);
+    }
+
+    stop() {
+      if (this.rafId) cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+      window.removeEventListener('resize', this.onResize);
+      this.canvas?.remove();
+      this.canvas = null;
+      this.ctx = null;
+      this.frameContext = null;
+    }
+
+    resize() {
+      if (!this.canvas) return;
+      this.dpr = window.devicePixelRatio || 1;
+      this.canvas.width = Math.round(innerWidth * this.dpr);
+      this.canvas.height = Math.round(innerHeight * this.dpr);
+    }
+
+    // ---- Layer registry ----
+
+    /**
+     * Registers a draw/update callback. Lower priority numbers run first.
+     * `fn(ctx, frame)` is called every frame while the overlay runs.
+     * Returns an unregister function.
+     */
+    registerLayer(name, priority, fn) {
+      const layer = { name, priority, fn };
+      this.layers.push(layer);
+      this.layers.sort((a, b) => a.priority - b.priority);
+      return () => { this.layers = this.layers.filter((item) => item !== layer); };
+    }
+
+    /** Calls `listener` when the player switches to another aircraft instance. */
+    onAircraftChange(listener) {
+      this.aircraftChangeListeners.add(listener);
+      return () => this.aircraftChangeListeners.delete(listener);
+    }
+
+    /** The context of the most recently rendered frame (null before the first frame). */
+    getFrame() {
+      return this.frameContext;
+    }
+
+    /** Adds an impact flash at a world position. */
+    addImpact(position, nowMs = performance.now()) {
+      this.impacts.push({ pos: position, t0: nowMs });
+    }
+
+    toggleEnabled() {
+      this.enabled = !this.enabled;
+      this.combat.notify(`EEGS display: ${this.enabled ? 'ON' : 'OFF'}`, 2000);
+      return this.enabled;
+    }
+
+    // ---- GeoFS state helpers ----
+
+    static isReady() {
+      return !!(window.geofs && geofs.aircraft && geofs.aircraft.instance
+        && geofs.api && geofs.api.viewer && window.Cesium
+        && geofs.animation && geofs.animation.values);
+    }
+
+    inCockpit() {
+      if (!this.cfg.cockpitOnly) return true;
+      const camera = window.geofs?.camera;
+      if (!camera) return true;
+      const name = String(camera.currentModeName || '').toLowerCase();
+      return name ? name.includes('cockpit') : camera.currentMode === 0;
+    }
+
+    // ---- Orientation ----
+
+    /** Camera axes [forward, right, down] expressed in the camera's own ENU frame. */
+    cameraAxes() {
+      const cam = geofs.api.viewer.scene.camera;
+      const inv = Cesium.Matrix4.inverseTransformation(
+        Cesium.Transforms.eastNorthUpToFixedFrame(cam.positionWC), new Cesium.Matrix4());
+      const enu = (c) => {
+        const o = Cesium.Matrix4.multiplyByPointAsVector(inv, c, new Cesium.Cartesian3());
+        return [o.x, o.y, o.z];
+      };
+      return [enu(cam.directionWC), enu(cam.rightWC), mul(enu(cam.upWC), -1)];
+    }
+
+    /** Aircraft axes [forward, right, down] from GeoFS attitude with the given sign convention. */
+    aircraftAxes(hs, ps, rs) {
+      const v = geofs.animation.values;
+      const h = (v.heading360 || 0) * DEG * hs;
+      const p = (v.atilt || 0) * DEG * ps;
+      const r = (v.aroll || 0) * DEG * rs;
+      const fwd = [Math.sin(h) * Math.cos(p), Math.cos(h) * Math.cos(p), Math.sin(p)];
+      const right0 = [Math.cos(h), -Math.sin(h), 0];
+      const up0 = cross(right0, fwd);
+      const c = Math.cos(r);
+      const s = Math.sin(r);
+      const right = add(mul(right0, c), mul(up0, -s));
+      const up = add(mul(right0, s), mul(up0, c));
+      return [fwd, right, mul(up, -1)];
+    }
+
+    /**
+     * Body axes of the aircraft. The GeoFS attitude sign convention is not
+     * reliable across aircraft, so all 8 sign combinations are scored against the
+     * camera while in the cockpit and the best one wins.
+     */
+    bodyAxes() {
+      const cam = this.cameraAxes();
+      if (this.cfg.orientationSource === 'camera') return cam;
+      const all = this.combos.map((c) => this.aircraftAxes(c[0], c[1], c[2]));
+      if (this.inCockpit()) {
+        for (let i = 0; i < all.length; i++) {
+          const m = dot(all[i][0], cam[0]) + dot(all[i][1], cam[1]) + dot(all[i][2], cam[2]);
+          this.scores[i] = this.scores[i] * 0.99 + m;
+        }
+        for (let i = 0; i < this.scores.length; i++) if (this.scores[i] > this.scores[this.best] + 3) this.best = i;
+      }
+      return all[this.best];
+    }
+
+    /** Estimates aircraft velocity (ENU, m/s) and angular rate (rad/s) from successive frames. */
+    updateMotion(axes) {
+      const lla = geofs.aircraft.instance.llaLocation;
+      const now = performance.now();
+      const dt = (now - this.lastT) / 1000;
+      if (lla && this.lastPos && dt > 0.001 && dt < 0.5) {
+        const a = Math.min(1, dt * 8);
+        const n = (lla[0] - this.lastPos[0]) * DEG * R_EARTH / dt;
+        const e = (lla[1] - this.lastPos[1]) * DEG * R_EARTH * Math.cos(lla[0] * DEG) / dt;
+        const u = (lla[2] - this.lastPos[2]) / dt;
+        if (Math.hypot(e, n, u) < 1500) {
+          this.vel[0] += (e - this.vel[0]) * a;
+          this.vel[1] += (n - this.vel[1]) * a;
+          this.vel[2] += (u - this.vel[2]) * a;
+        }
+        if (this.prevAxes) {
+          const prev = this.prevAxes;
+          const d = (i, j) => dot(prev[i], axes[j]);
+          const w = [(d(2, 1) - d(1, 2)) / (2 * dt),
+            (d(0, 2) - d(2, 0)) / (2 * dt),
+            (d(1, 0) - d(0, 1)) / (2 * dt)];
+          if (Math.hypot(w[0], w[1], w[2]) < 4) {
+            const b = Math.min(1, dt * 6);
+            for (let i = 0; i < 3; i++) this.omega[i] += (w[i] - this.omega[i]) * b;
+          }
+        }
+      }
+      this.lastPos = lla ? lla.slice() : null;
+      this.lastT = now;
+      this.prevAxes = axes;
+    }
+
+    /** Rotates vector `v` by the aircraft angular rate over `t` seconds (body-frame drift). */
+    inRotatedFrame(v, t) {
+      const omega = this.omega;
+      const m = Math.hypot(omega[0], omega[1], omega[2]);
+      const th = m * t;
+      if (th < 1e-6) return v;
+      const k = [omega[0] / m, omega[1] / m, omega[2] / m];
+      const c = Math.cos(th);
+      const s = Math.sin(th);
+      const kxv = cross(k, v);
+      const kdv = dot(k, v);
+      return [v[0] * c - kxv[0] * s + k[0] * kdv * (1 - c),
+        v[1] * c - kxv[1] * s + k[1] * kdv * (1 - c),
+        v[2] * c - kxv[2] * s + k[2] * kdv * (1 - c)];
+    }
+
+    // ---- Projection ----
+
+    /** Projects an ENU-frame point to page pixel coordinates (null when not visible). */
+    toScreen(enuMat, scene, p, raw) {
+      const world = CombatMath.worldPosition(enuMat, p);
+      return this.worldToScreen(scene, world, raw);
+    }
+
+    /** Projects a world position to page pixel coordinates. `raw` skips the HUD offset. */
+    worldToScreen(scene, world, raw) {
+      const s = CombatMath.projectWorld(scene, world);
+      if (!s) return null;
+      const rect = scene.canvas.getBoundingClientRect();
+      const k = rect.width / scene.canvas.clientWidth || 1;
+      const ox = raw ? 0 : this.cfg.hudOffset.x;
+      const oy = raw ? 0 : this.cfg.hudOffset.y;
+      return { x: rect.left + s.x * k + ox, y: rect.top + s.y * k + oy };
+    }
+
+    // ---- Frame loop ----
+
+    renderFrame() {
+      this.rafId = requestAnimationFrame(this.frame);
+      const ctx = this.ctx;
+      if (!ctx) return;
+      ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      ctx.clearRect(0, 0, innerWidth, innerHeight);
+      if (!WeaponOverlayModule.isReady()) return;
+
+      const scene = geofs.api.viewer.scene;
+      const axes = this.bodyAxes();
+      this.updateMotion(axes);
+
+      const nowMs = performance.now();
+      const dt = Math.min(0.1, Math.max(0, (nowMs - this.lastFrameTime) / 1000));
+      this.lastFrameTime = nowMs;
+
+      if (geofs.aircraft.instance !== this.lastInstance) {
+        this.lastInstance = geofs.aircraft.instance;
+        for (const listener of this.aircraftChangeListeners) {
+          try { listener(); } catch (error) { console.error('[Overlay] aircraft change listener failed', error); }
+        }
+      }
+
+      const camPos = scene.camera.positionWC;
+      const fovy = (scene.camera.frustum && scene.camera.frustum.fovy) || 1;
+      const pxPerRad = (scene.canvas.clientHeight / 2) / Math.tan(fovy / 2);
+      const ang = (d) => pxPerRad * Math.tan(d * DEG);
+      const frame = {
+        ctx, scene, nowMs, dt, axes,
+        vel: this.vel,
+        omega: this.omega,
+        enuMat: Cesium.Transforms.eastNorthUpToFixedFrame(camPos),
+        pxPerRad,
+        ang,
+        lw: Math.max(1, ang(this.cfg.lineDeg)),
+        maskY: innerHeight * this.cfg.maskBottom,
+        active: this.enabled && this.inCockpit(),
+        dpr: this.dpr,
+        overlay: this
+      };
+      this.frameContext = frame;
+
+      for (const layer of this.layers) {
+        ctx.save();
+        try {
+          layer.fn(ctx, frame);
+        } catch (error) {
+          console.error(`[Overlay] layer "${layer.name}" failed`, error);
+        }
+        ctx.restore();
+      }
+    }
+  }
+
+  window.WeaponOverlayModule = WeaponOverlayModule;
+})();
+
+(function () {
+  'use strict';
+
+  const { DEG, NM, normalizeHeading, angleDifference, bearingAndDistance } = CombatMath;
+
+  const RADAR_RANGE_NM = 70;
+
+  /**
+   * Contact list, target selection and combat lock shared by the HUD,
+   * projectile, A/A simulation and multiplayer modules.
+   *
+   * Contacts come from GeoFS multiplayer users plus any registered provider
+   * (the A/A simulation registers its NPC bandits). The "combat lock" is set
+   * with the lock key; if none is set, a hard lock made on the RDR MFD page
+   * (`addon.radar.hardLockedUid`) is used so both lock mechanisms arm missiles.
+   */
+  class TargetModule {
+    constructor(combat, addon = null) {
+      this.combat = combat;
+      this.addon = addon;
+      combat.targets = this;
+      this.targetMode = false;
+      this.selectedTargetId = null;
+      this.lockedTargetId = null;
+      this.currentTargets = [];
+      this.providers = new Set();
+      this.lastRefreshAt = 0;
+      this.unregisterLayer = null;
+    }
+
+    start() {
+      const overlay = this.combat.overlay;
+      if (overlay) {
+        this.unregisterLayer = overlay.registerLayer('targets', 4, (ctx, frame) => this.update(frame));
+        overlay.onAircraftChange(() => this.reset());
+      }
+    }
+
+    stop() {
+      this.unregisterLayer?.();
+      this.unregisterLayer = null;
+      this.reset();
+    }
+
+    reset() {
+      this.targetMode = false;
+      this.selectedTargetId = null;
+      this.lockedTargetId = null;
+      this.currentTargets = [];
+    }
+
+    /** Registers a function returning extra contacts: { id, callsign, lat, lon, alt, ...extra }. */
+    registerProvider(provider) {
+      this.providers.add(provider);
+      return () => this.providers.delete(provider);
+    }
+
+    /** True while something needs a continuously updated target list. */
+    isTrackingNeeded() {
+      return this.targetMode
+        || !!this.combat.aaCombat?.active
+        || !!this.combat.projectile?.hasTrackedMissiles?.();
+    }
+
+    update(frame) {
+      if (this.isTrackingNeeded()) {
+        this.refresh(true);
+      } else {
+        this.currentTargets = [];
+      }
+      if (this.selectedTargetId && !this.currentTargets.some((t) => t.id === this.selectedTargetId)) {
+        this.selectedTargetId = null;
+      }
+      if (this.lockedTargetId && !this.currentTargets.some((t) => t.id === this.lockedTargetId)) {
+        this.lockedTargetId = null;
+        this.combat.notify('RADAR: TARGET LOST', 1500);
+      }
+      if (this.targetMode && !this.selectedTargetId && this.currentTargets.length) {
+        this.selectedTargetId = this.currentTargets[0].id;
+      }
+    }
+
+    /** Recomputes the contact list (rate limited unless `force`). */
+    refresh(force = false) {
+      const now = performance.now();
+      if (!force && now - this.lastRefreshAt < 100) return this.currentTargets;
+      this.lastRefreshAt = now;
+      this.currentTargets = this.computeTargets();
+      return this.currentTargets;
+    }
+
+    computeTargets() {
+      if (!window.geofs?.aircraft?.instance) return [];
+      const own = geofs.aircraft.instance.llaLocation;
+      if (!own) return [];
+      const ownHeading = Number(geofs.animation?.values?.heading360 || geofs.animation?.values?.heading) || 0;
+      const rangeLimit = RADAR_RANGE_NM * NM;
+      const targets = [];
+
+      const consider = (contact) => {
+        const { bearing, distance } = bearingAndDistance(own, contact.lat, contact.lon, contact.alt);
+        if (!Number.isFinite(distance) || distance < 50 || distance > rangeLimit) return;
+        targets.push({
+          ...contact,
+          bearing,
+          rangeNm: distance / NM,
+          relativeBearing: angleDifference(ownHeading, bearing)
+        });
+      };
+
+      for (const user of Object.values(window.multiplayer?.visibleUsers ?? {})) {
+        const co = user && user.lastUpdate && user.lastUpdate.co;
+        if (!Array.isArray(co) || co.length < 3) continue;
+        const lat = Number(co[0]);
+        const lon = Number(co[1]);
+        const alt = Number(co[2]);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(alt)) continue;
+        const id = String(user.id ?? user.uid ?? user.callsign ?? user.cs ?? '');
+        if (!id) continue;
+        consider({
+          id,
+          callsign: String(user.callsign ?? user.cs ?? user.aircraftName ?? 'CONTACT'),
+          lat, lon, alt
+        });
+      }
+
+      for (const provider of this.providers) {
+        let contacts = [];
+        try { contacts = provider() || []; } catch (error) { console.error('[Targets] provider failed', error); }
+        for (const contact of contacts) consider(contact);
+      }
+
+      targets.sort((a, b) => a.rangeNm - b.rangeNm);
+      return targets;
+    }
+
+    toggleTargetMode() {
+      this.targetMode = !this.targetMode;
+      if (!this.targetMode) {
+        this.selectedTargetId = null;
+        this.lockedTargetId = null;
+      } else {
+        this.refresh(true);
+        if (!this.selectedTargetId && this.currentTargets.length) {
+          this.selectedTargetId = this.currentTargets[0].id;
+        }
+      }
+      this.combat.notify(`TARGET MODE: ${this.targetMode ? 'ON' : 'OFF'}`, 1500);
+    }
+
+    /** Selects the next (+1) or previous (-1) contact and drops any lock. */
+    selectTarget(step) {
+      this.refresh(true);
+      const targets = this.currentTargets;
+      if (!targets.length) {
+        this.selectedTargetId = null;
+        this.lockedTargetId = null;
+        this.combat.notify('RADAR: NO CONTACTS', 1500);
+        return;
+      }
+      const index = targets.findIndex((t) => t.id === this.selectedTargetId);
+      const next = index < 0
+        ? (step > 0 ? 0 : targets.length - 1)
+        : (index + step + targets.length) % targets.length;
+      this.selectedTargetId = targets[next].id;
+      this.lockedTargetId = null;
+      this.combat.notify(`TARGET: ${targets[next].callsign}`, 1500);
+    }
+
+    toggleLock() {
+      this.refresh(true);
+      const target = this.currentTargets.find((t) => t.id === this.selectedTargetId);
+      if (!target) {
+        this.lockedTargetId = null;
+        this.combat.notify('RADAR: SELECT A TARGET FIRST', 1500);
+        return;
+      }
+      if (this.lockedTargetId === target.id) {
+        this.lockedTargetId = null;
+        this.combat.notify('RADAR: LOCK RELEASED', 1500);
+      } else {
+        this.lockedTargetId = target.id;
+        this.combat.notify(`RADAR: LOCKED ${target.callsign}`, 1500);
+      }
+    }
+
+    getSelectedTarget() {
+      return this.currentTargets.find((t) => t.id === this.selectedTargetId) ?? null;
+    }
+
+    /** The target a missile would be launched at: combat lock, else the RDR hard lock. */
+    getLockedTarget() {
+      this.refresh(true);
+      if (this.lockedTargetId) {
+        const locked = this.currentTargets.find((t) => t.id === this.lockedTargetId);
+        if (locked) return locked;
+      }
+      const radarUid = this.addon?.radar?.hardLockedUid ?? window.BasePlugin?.getActiveAddon?.()?.radar?.hardLockedUid;
+      if (radarUid) {
+        return this.currentTargets.find((t) => t.id === String(radarUid)) ?? null;
+      }
+      return null;
+    }
+
+    hasLock() {
+      return !!this.getLockedTarget();
+    }
+
+    findTarget(id) {
+      return this.currentTargets.find((t) => t.id === id) ?? null;
+    }
+  }
+
+  window.TargetModule = TargetModule;
+})();
+
+(function () {
+  'use strict';
+
+  /**
+   * Procedural weapon sounds (Web Audio): looping gun fire, dry-fire click,
+   * missile launch and countermeasure release. Reacts to WeaponModule events
+   * (`fire`, `dryfire`, `gunstate`), so it needs no knowledge of the keybinds.
+   */
+  class WeaponAudioModule {
+    constructor(combat, weaponModule, config = {}) {
+      this.combat = combat;
+      this.weapons = weaponModule;
+      combat.audio = this;
+      this.cfg = { sound: true, gunVolume: 0.7, ...config };
+      this.actx = null;
+      this.gunBuf = null;
+      this.gunFilter = null;
+      this.gunGain = null;
+      this.gunSrc = null;
+      this.soundOn = false;
+      this.unsubscribers = [];
+    }
+
+    start() {
+      if (!this.weapons?.on) return;
+      this.unsubscribers.push(
+        this.weapons.on('fire', (event) => { if (event.weapon && event.weapon !== 'GUN') this.missileSound(); }),
+        this.weapons.on('dryfire', () => this.dryClick()),
+        this.weapons.on('gunstate', ({ firing }) => this.gunSound(!!firing))
+      );
+    }
+
+    stop() {
+      this.gunSound(false);
+      for (const unsubscribe of this.unsubscribers) unsubscribe();
+      this.unsubscribers = [];
+    }
+
+    /** Creates the AudioContext lazily (it must follow a user gesture). */
+    initAudio() {
+      if (this.actx || !this.cfg.sound) return;
+      const AudioCtor = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtor) return;
+      const actx = new AudioCtor();
+      this.actx = actx;
+      const sr = actx.sampleRate;
+      const rate = this.weapons?.GUN_FIRE_RATE_RPS ?? 100;
+      const period = Math.round(sr / rate);
+      const rounds = 60;
+      const len = period * rounds;
+      this.gunBuf = actx.createBuffer(1, len, sr);
+      const d = this.gunBuf.getChannelData(0);
+      for (let r = 0; r < rounds; r++) {
+        const amp = 0.8 + 0.2 * Math.random();
+        const start = r * period;
+        for (let n = 0; n < period * 2; n++) {
+          const t = n / sr;
+          const crack = (Math.random() * 2 - 1) * Math.exp(-t / 0.0012);
+          const thump = Math.sin(2 * Math.PI * 70 * t) * Math.exp(-t / 0.0055);
+          d[(start + n) % len] += amp * (0.55 * crack + 0.9 * thump);
+        }
+      }
+      let peak = 0;
+      for (let i = 0; i < len; i++) peak = Math.max(peak, Math.abs(d[i]));
+      for (let i = 0; i < len; i++) d[i] /= (peak || 1);
+
+      this.gunFilter = actx.createBiquadFilter();
+      this.gunFilter.type = 'lowpass';
+      this.gunFilter.frequency.value = 3200;
+      this.gunGain = actx.createGain();
+      this.gunGain.gain.value = 0.0001;
+      const compressor = actx.createDynamicsCompressor();
+      this.gunFilter.connect(this.gunGain);
+      this.gunGain.connect(compressor);
+      compressor.connect(actx.destination);
+    }
+
+    gunSound(on) {
+      if (on) this.initAudio();
+      const actx = this.actx;
+      if (!actx || !this.gunBuf) return;
+      const t = actx.currentTime;
+      if (on && !this.soundOn) {
+        this.soundOn = true;
+        if (actx.state === 'suspended') actx.resume();
+        this.gunSrc = actx.createBufferSource();
+        this.gunSrc.buffer = this.gunBuf;
+        this.gunSrc.loop = true;
+        this.gunSrc.playbackRate.setValueAtTime(0.55, t);
+        this.gunSrc.playbackRate.linearRampToValueAtTime(1, t + 0.25);
+        this.gunSrc.connect(this.gunFilter);
+        this.gunGain.gain.cancelScheduledValues(t);
+        this.gunGain.gain.setValueAtTime(0.0001, t);
+        this.gunGain.gain.linearRampToValueAtTime(this.cfg.gunVolume, t + 0.04);
+        this.gunSrc.start(t);
+      } else if (!on && this.soundOn) {
+        this.soundOn = false;
+        const src = this.gunSrc;
+        this.gunGain.gain.cancelScheduledValues(t);
+        this.gunGain.gain.setValueAtTime(Math.max(0.0001, this.gunGain.gain.value), t);
+        this.gunGain.gain.linearRampToValueAtTime(0.0001, t + 0.2);
+        src.playbackRate.cancelScheduledValues(t);
+        src.playbackRate.setValueAtTime(src.playbackRate.value, t);
+        src.playbackRate.linearRampToValueAtTime(0.45, t + 0.2);
+        src.stop(t + 0.22);
+      }
+    }
+
+    dryClick() {
+      if (!this.cfg.sound) return;
+      this.initAudio();
+      const actx = this.actx;
+      if (!actx) return;
+      const sr = actx.sampleRate;
+      const n = Math.round(sr * 0.03);
+      const buffer = actx.createBuffer(1, n, sr);
+      const d = buffer.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (sr * 0.004));
+      const src = actx.createBufferSource();
+      const gain = actx.createGain();
+      const filter = actx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.value = 1800;
+      gain.gain.value = this.cfg.gunVolume * 0.6;
+      src.buffer = buffer;
+      src.connect(filter);
+      filter.connect(gain);
+      gain.connect(actx.destination);
+      src.start();
+    }
+
+    countermeasureSound() {
+      if (!this.cfg.sound) return;
+      this.initAudio();
+      const actx = this.actx;
+      if (!actx) return;
+      if (actx.state === 'suspended') actx.resume();
+
+      const now = actx.currentTime;
+      const length = Math.round(actx.sampleRate * 0.18);
+      const buffer = actx.createBuffer(1, length, actx.sampleRate);
+      const samples = buffer.getChannelData(0);
+      for (let i = 0; i < length; i++) {
+        samples[i] = (Math.random() * 2 - 1) * Math.exp(-i / (actx.sampleRate * 0.055));
+      }
+      const noise = actx.createBufferSource();
+      const filter = actx.createBiquadFilter();
+      const noiseGain = actx.createGain();
+      filter.type = 'bandpass';
+      filter.frequency.value = 1400;
+      filter.Q.value = 0.7;
+      noiseGain.gain.setValueAtTime(this.cfg.gunVolume * 0.45, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+      noise.buffer = buffer;
+      noise.connect(filter);
+      filter.connect(noiseGain);
+      noiseGain.connect(actx.destination);
+      noise.start(now);
+
+      const pop = actx.createOscillator();
+      const popGain = actx.createGain();
+      pop.type = 'sine';
+      pop.frequency.setValueAtTime(125, now);
+      pop.frequency.exponentialRampToValueAtTime(55, now + 0.11);
+      popGain.gain.setValueAtTime(this.cfg.gunVolume * 0.3, now);
+      popGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+      pop.connect(popGain);
+      popGain.connect(actx.destination);
+      pop.start(now);
+      pop.stop(now + 0.13);
+    }
+
+    missileSound() {
+      if (!this.cfg.sound) return;
+      this.initAudio();
+      const actx = this.actx;
+      if (!actx) return;
+      if (actx.state === 'suspended') actx.resume();
+
+      const now = actx.currentTime;
+      const oscillator = actx.createOscillator();
+      const gain = actx.createGain();
+      oscillator.type = 'sawtooth';
+      oscillator.frequency.setValueAtTime(95, now);
+      oscillator.frequency.exponentialRampToValueAtTime(520, now + 0.35);
+      gain.gain.setValueAtTime(this.cfg.gunVolume * 0.35, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+      oscillator.connect(gain);
+      gain.connect(actx.destination);
+      oscillator.start(now);
+      oscillator.stop(now + 0.42);
+    }
+  }
+
+  window.WeaponAudioModule = WeaponAudioModule;
+})();
+
+(function () {
+  'use strict';
+
+  const DEFAULT_BINDINGS = {
+    fire: 'Backslash',
+    selectWeaponNext: 'Equal',
+    selectWeaponPrevious: 'Minus',
+    targetMode: 'KeyT',
+    selectPrevious: 'Comma',
+    selectNext: 'Slash',
+    lock: 'Enter',
+    countermeasures: 'Backspace',
+    display: 'KeyU',
+    reload: 'Shift+KeyU'
+  };
+
+  const OPTION_KEYS = {
+    fire: 'FIRE',
+    selectWeaponNext: 'WPN_NEXT',
+    selectWeaponPrevious: 'WPN_PREV',
+    targetMode: 'TGT_MODE',
+    selectPrevious: 'TGT_PREV',
+    selectNext: 'TGT_NEXT',
+    lock: 'LOCK',
+    countermeasures: 'CM',
+    display: 'DISPLAY',
+    reload: 'RELOAD'
+  };
+
+  const LABELS = {
+    fire: 'Fire (hold for gun)',
+    selectWeaponNext: 'Next weapon',
+    selectWeaponPrevious: 'Previous weapon',
+    targetMode: 'Target mode',
+    selectPrevious: 'Previous target',
+    selectNext: 'Next target',
+    lock: 'Lock target',
+    countermeasures: 'Countermeasures',
+    display: 'HUD display on/off',
+    reload: 'Rearm (parked, master off)'
+  };
+
+  /**
+   * Keyboard controls for the weapon system. Bindings are `event.code` values,
+   * optionally prefixed with `Shift+`, and are stored per aircraft through
+   * OptionModule. The module only translates keys into calls on WeaponModule,
+   * TargetModule, ProjectileModule and the overlay; it holds no weapon state.
+   * Target keys (select/lock) are only captured while target mode is on, so
+   * Enter/Comma/Slash keep their normal GeoFS meaning otherwise.
+   */
+  class KeybindModule {
+    constructor(combat, weaponModule, config = {}) {
+      this.combat = combat;
+      this.weaponModule = weaponModule;
+      combat.keybinds = this;
+      this.bindings = {};
+      for (const [action, fallback] of Object.entries(DEFAULT_BINDINGS)) {
+        this.bindings[action] = config[`${action}Code`]
+          ?? OptionModule.getOption('KEY', OPTION_KEYS[action], fallback);
+      }
+      this.running = false;
+      this.optionsTimer = null;
+      this.onKeyDown = (event) => this.handleKeyDown(event);
+      this.onKeyUp = (event) => this.handleKeyUp(event);
+      this.onBlur = () => this.weaponModule?.releaseTrigger?.();
+    }
+
+    start() {
+      if (this.running) return;
+      window.addEventListener('keydown', this.onKeyDown, true);
+      window.addEventListener('keyup', this.onKeyUp, true);
+      window.addEventListener('blur', this.onBlur);
+      this.running = true;
+      this.installOptionsControls();
+      this.optionsTimer = setInterval(() => this.installOptionsControls(), 1000);
+    }
+
+    stop() {
+      if (!this.running) return;
+      window.removeEventListener('keydown', this.onKeyDown, true);
+      window.removeEventListener('keyup', this.onKeyUp, true);
+      window.removeEventListener('blur', this.onBlur);
+      this.weaponModule?.releaseTrigger?.();
+      this.running = false;
+      clearInterval(this.optionsTimer);
+      this.optionsTimer = null;
+      document.querySelector('.geofs-addon-keybinds')?.remove();
+    }
+
+    installOptionsControls() {
+      const mounted = CombatMath.ensureGeneralFieldset('geofs-addon-keybinds', 'Weapon Keybinds');
+      if (!mounted || mounted.controls.dataset.built) return;
+      mounted.controls.dataset.built = '1';
+      for (const [action, label] of Object.entries(LABELS)) {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = this.bindings[action];
+        input.title = 'Keyboard event.code, optionally prefixed with Shift+';
+        input.addEventListener('change', () => {
+          this.bindings[action] = input.value.trim() || DEFAULT_BINDINGS[action];
+          input.value = this.bindings[action];
+          OptionModule.setOption('KEY', OPTION_KEYS[action], this.bindings[action]);
+        });
+        const row = document.createElement('label');
+        row.style.display = 'block';
+        row.textContent = `${label}: `;
+        row.appendChild(input);
+        mounted.controls.appendChild(row);
+      }
+    }
+
+    static isTyping(event) {
+      const target = event.target;
+      return !!(target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName || '')));
+    }
+
+    /** Finds the action bound to the key, preferring the binding whose Shift requirement matches. */
+    findAction(event) {
+      let fallback = null;
+      for (const [action, binding] of Object.entries(this.bindings)) {
+        const requiresShift = /^shift\+/i.test(binding);
+        const code = binding.replace(/^shift\+/i, '');
+        if (code !== event.code) continue;
+        if (requiresShift === event.shiftKey) return action;
+        if (!requiresShift) fallback = fallback ?? action;
+      }
+      return fallback;
+    }
+
+    handleKeyDown(event) {
+      if (KeybindModule.isTyping(event) || event.ctrlKey || event.altKey || event.metaKey) return;
+      const action = this.findAction(event);
+      if (!action) return;
+
+      const targets = this.combat.targets;
+      const targetKey = action === 'selectNext' || action === 'selectPrevious' || action === 'lock';
+      if (targetKey && !targets?.targetMode) return;
+
+      // Gun fire is a held key; every other action fires once per key press.
+      if (action === 'fire') {
+        if (!event.repeat) this.weaponModule?.pressTrigger?.();
+        return;
+      }
+      event.preventDefault();
+      if (event.repeat) return;
+      this.invoke(action);
+    }
+
+    handleKeyUp(event) {
+      const binding = this.bindings.fire.replace(/^shift\+/i, '');
+      if (event.code === binding) this.weaponModule?.releaseTrigger?.();
+    }
+
+    invoke(action) {
+      const combat = this.combat;
+      const weapons = this.weaponModule;
+      const mode = OptionModule.getOption('WPN', 'MODE', 'A/A');
+      switch (action) {
+        case 'selectWeaponNext':
+          return weapons?.selectNextWeapon?.(mode, weapons.getModeLoadout(mode), 0);
+        case 'selectWeaponPrevious':
+          return weapons?.selectPreviousWeapon?.(mode, weapons.getModeLoadout(mode), 0);
+        case 'targetMode':
+          return combat.targets?.toggleTargetMode();
+        case 'selectNext':
+          return combat.targets?.selectTarget(1);
+        case 'selectPrevious':
+          return combat.targets?.selectTarget(-1);
+        case 'lock':
+          return combat.targets?.toggleLock();
+        case 'countermeasures':
+          return combat.projectile?.releaseCountermeasures();
+        case 'display':
+          return combat.overlay?.toggleEnabled();
+        case 'reload': {
+          if (OptionModule.getOption('WPN', 'MASTER', 'OFF') !== 'OFF') {
+            combat.notify('SET MASTER OFF TO REARM', 2000);
+            return undefined;
+          }
+          return weapons?.startRearm?.(OptionModule.getOption('WPN', 'CONFIG', 'A/A'));
+        }
+        default:
+          return undefined;
+      }
+    }
+  }
+
+  window.KeybindModule = KeybindModule;
+})();
+
+(function () {
+  'use strict';
+
+  const { dot, add, mul, DEG } = CombatMath;
+
+  /**
+   * Gun/weapon HUD drawn on the shared overlay: boresight cross, ballistic gun
+   * funnel (the EEGS "wingspan" funnel with range ticks), the missile arc and
+   * the target box. Port of the HUD drawing of the former f16eegs.js script.
+   * Only visible in A/A mode from the cockpit view.
+   */
+  class WeaponHudModule {
+    constructor(combat, weaponModule, config = {}) {
+      this.combat = combat;
+      this.weapons = weaponModule;
+      combat.weaponHud = this;
+      this.cfg = {
+        hudFov: { w: 18, h: 20 },   // HUD clip window in degrees
+        crossDeg: 0.7,
+        step: 0.03,                 // funnel time step in seconds
+        maxTime: 4,
+        minRange: 150,
+        maxRange: 2400,
+        wingspan: 10.7,
+        tickRanges: [500, 1000, 1500, 2000],
+        tickTextDeg: 0.8,
+        counterTextDeg: 1.1,
+        lockedColor: '#ff5959',
+        showAmmoCounter: false,
+        showHudFrame: false,
+        ...config
+      };
+      this.unregisterLayer = null;
+    }
+
+    start() {
+      this.unregisterLayer = this.combat.overlay?.registerLayer('weapon-hud', 60,
+        (ctx, frame) => this.draw(ctx, frame)) ?? null;
+    }
+
+    stop() {
+      this.unregisterLayer?.();
+      this.unregisterLayer = null;
+    }
+
+    polyline(ctx, pts) {
+      if (pts.length < 2) return;
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.stroke();
+    }
+
+    getSelectedStation() {
+      const mode = OptionModule.getOption('WPN', 'MODE', 'NAV');
+      const loadout = this.weapons.getModeLoadout(mode);
+      const selected = this.weapons.ensureSelectedWeapon(mode, loadout);
+      return { mode, loadout, selected };
+    }
+
+    draw(ctx, f) {
+      if (!f.active) return;
+      const { mode, loadout, selected } = this.getSelectedStation();
+      // Missiles get no overlay drawing; their range bracket lives in the F-18 HUD.
+      if (mode !== 'A/A' || selected?.station !== 'gun') return;
+
+      const { scene, axes, vel, enuMat, pxPerRad, ang, overlay } = f;
+      const color = overlay.cfg.color;
+      const boresight = overlay.toScreen(enuMat, scene, mul(axes[0], 1000));
+      if (!boresight) return;
+
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = f.lw;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 3;
+
+      const halfW = pxPerRad * Math.tan(this.cfg.hudFov.w / 2 * DEG);
+      const halfH = pxPerRad * Math.tan(this.cfg.hudFov.h / 2 * DEG);
+      const top = boresight.y - halfH;
+      const bottom = Math.min(boresight.y + halfH, f.maskY);
+
+      if (this.cfg.showHudFrame) {
+        ctx.save();
+        ctx.globalAlpha = 0.5;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(boresight.x - halfW, top, halfW * 2, boresight.y + halfH - top);
+        ctx.strokeStyle = '#ff5050';
+        ctx.beginPath();
+        ctx.moveTo(0, f.maskY);
+        ctx.lineTo(innerWidth, f.maskY);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      ctx.beginPath();
+      ctx.rect(boresight.x - halfW, top, halfW * 2, Math.max(0, bottom - top));
+      ctx.clip();
+
+      const targets = this.combat.targets;
+      if (targets?.targetMode) {
+        this.drawTarget(ctx, f, targets.getSelectedTarget(), {
+          left: boresight.x - halfW, right: boresight.x + halfW, top, bottom
+        });
+      }
+
+      ctx.beginPath();
+      const arm = ang(this.cfg.crossDeg);
+      ctx.moveTo(boresight.x - arm, boresight.y);
+      ctx.lineTo(boresight.x + arm, boresight.y);
+      ctx.moveTo(boresight.x, boresight.y - arm);
+      ctx.lineTo(boresight.x, boresight.y + arm);
+      ctx.stroke();
+
+      this.drawFunnel(ctx, f, boresight);
+
+      if (this.cfg.showAmmoCounter) {
+        const station = selected?.station === 'gun' ? null : loadout?.[selected?.side]?.[selected?.station];
+        const label = selected?.station === 'gun' ? 'GUN' : (station?.load ?? '');
+        const ammo = selected?.station === 'gun' ? loadout?.gun : station?.quantity;
+        if (label) {
+          ctx.font = `bold ${Math.max(8, ang(this.cfg.counterTextDeg))}px monospace`;
+          ctx.textAlign = 'left';
+          ctx.fillStyle = ammo > 0 ? color : '#ff0000';
+          ctx.fillText(ammo > 0 ? `${label} ${String(ammo).padStart(3, '0')}` : `${label} NO AMMO`,
+            boresight.x - halfW + ang(0.5), bottom - ang(0.6));
+        }
+      }
+    }
+
+    drawFunnel(ctx, f, boresight) {
+      const { scene, axes, vel, enuMat, pxPerRad, ang, overlay } = f;
+      const cfg = this.cfg;
+      const gun = WeaponModule.gunMetadata;
+      const v0 = add(vel, mul(axes[0], gun.muzzleVelocity));
+      const pts = [];
+      for (let t = cfg.step; t <= cfg.maxTime; t += cfg.step) {
+        const k = (1 - Math.exp(-gun.drag * t)) / gun.drag;
+        const bullet = add(mul(v0, k), [0, 0, -0.5 * gun.gravity * t * t]);
+        const rel = [bullet[0] - vel[0] * t, bullet[1] - vel[1] * t, bullet[2] - vel[2] * t];
+        const b0 = [dot(axes[0], rel), dot(axes[1], rel), dot(axes[2], rel)];
+        const b = overlay.inRotatedFrame(b0, t);
+        const range = Math.hypot(b[0], b[1], b[2]);
+        if (range < cfg.minRange) continue;
+        if (range > cfg.maxRange) break;
+        const dir = add(add(mul(axes[0], b[0] / range), mul(axes[1], b[1] / range)),
+          mul(axes[2], b[2] / range));
+        const screen = overlay.toScreen(enuMat, scene, mul(dir, 1000));
+        if (screen) pts.push({ x: screen.x, y: screen.y, r: range });
+      }
+      if (pts.length < 3) return;
+
+      const left = [];
+      const right = [];
+      for (let i = 0; i < pts.length; i++) {
+        const prev = pts[Math.max(0, i - 1)];
+        const next = pts[Math.min(pts.length - 1, i + 1)];
+        let tx = next.x - prev.x;
+        let ty = next.y - prev.y;
+        const len = Math.hypot(tx, ty) || 1;
+        tx /= len;
+        ty /= len;
+        const half = (cfg.wingspan / 2) / pts[i].r * pxPerRad;
+        left.push({ x: pts[i].x - ty * half, y: pts[i].y + tx * half, r: pts[i].r });
+        right.push({ x: pts[i].x + ty * half, y: pts[i].y - tx * half, r: pts[i].r });
+      }
+      this.polyline(ctx, left);
+      this.polyline(ctx, right);
+      ctx.font = `${Math.max(6, ang(cfg.tickTextDeg))}px monospace`;
+      ctx.textAlign = 'left';
+      for (const range of cfg.tickRanges) {
+        const i = left.findIndex((p) => p.r >= range);
+        if (i < 0) continue;
+        ctx.beginPath();
+        ctx.moveTo(left[i].x, left[i].y);
+        ctx.lineTo(right[i].x, right[i].y);
+        ctx.stroke();
+        ctx.fillText((range / 1000).toFixed(1), right[i].x + ang(0.4), right[i].y + ang(0.3));
+      }
+    }
+
+    /** Box and label around the selected target when it is inside the HUD window. */
+    drawTarget(ctx, f, target, bounds) {
+      if (!target) return;
+      const world = Cesium.Cartesian3.fromDegrees(target.lon, target.lat, target.alt);
+      const point = f.overlay.worldToScreen(f.scene, world);
+      if (!point) return;
+      const { x, y } = point;
+      if (x < bounds.left || x > bounds.right || y < bounds.top || y > bounds.bottom) return;
+
+      const size = 22;
+      const half = size / 2;
+      const color = this.combat.targets.getLockedTarget()?.id === target.id
+        ? this.cfg.lockedColor
+        : f.overlay.cfg.color;
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = 2;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 5;
+      ctx.strokeRect(x - half, y - half, size, size);
+      ctx.font = '11px monospace';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(target.callsign.slice(0, 14), x + half + 4, y - 2);
+      ctx.textBaseline = 'top';
+      ctx.fillText(`${target.rangeNm.toFixed(1)} NM`, x + half + 4, y + 2);
+      ctx.restore();
+    }
+  }
+
+  window.WeaponHudModule = WeaponHudModule;
+})();
+
+(function () {
+  'use strict';
+
+  const { add, mul, NM, turnVelocity, worldPosition } = CombatMath;
+
+  const TRAIL_LIFE_MS = 1400;
+  const IMPACT_LIFE_MS = 500;
+
+  /**
+   * Player projectiles: tracers, homing missiles, impacts and countermeasures.
+   *
+   * It consumes WeaponModule `fire` events (WeaponModule stays the single owner of
+   * loadout and ammo) and simulates/draws what was fired on the shared overlay.
+   * Lock acquisition is delegated to TargetModule, NPC reactions and damage to
+   * AACombatModule, and network events to MultiplayerModule.
+   */
+  class ProjectileModule {
+    constructor(combat, weaponModule, config = {}) {
+      this.combat = combat;
+      this.weapons = weaponModule;
+      combat.projectile = this;
+      this.cfg = { tracers: true, ...config };
+
+      this.missiles = [];
+      this.tracers = [];
+      this.countermeasures = [];
+      this.tracerAcc = 0;
+      this.countermeasureSequence = 0;
+      this.networkMissileSequence = 0;
+      this.unsubscribers = [];
+    }
+
+    start() {
+      this.unsubscribers.push(this.weapons.on('fire', (event) => this.onFire(event)));
+      const overlay = this.combat.overlay;
+      if (overlay) {
+        this.unsubscribers.push(
+          overlay.registerLayer('countermeasures', 10, (ctx, frame) => this.drawCountermeasures(ctx, frame)),
+          overlay.registerLayer('projectiles', 50, (ctx, frame) => this.updateAndDraw(ctx, frame)),
+          overlay.onAircraftChange(() => this.reset())
+        );
+      }
+    }
+
+    stop() {
+      for (const unsubscribe of this.unsubscribers) unsubscribe();
+      this.unsubscribers = [];
+      this.reset();
+    }
+
+    reset() {
+      this.missiles = [];
+      this.tracers = [];
+      this.countermeasures = [];
+      this.tracerAcc = 0;
+    }
+
+    hasTrackedMissiles() {
+      return this.missiles.some((missile) => missile.targetId);
+    }
+
+    getCountermeasures() {
+      return this.countermeasures;
+    }
+
+    // ---- Firing ----
+
+    onFire(event) {
+      const frame = this.combat.overlay?.getFrame();
+      if (!frame || !window.geofs?.aircraft?.instance) return;
+      if (event.weapon === 'GUN') {
+        this.fireGunRound(frame, event.metadata?.projectile ?? WeaponModule.gunMetadata);
+      } else if (event.weapon) {
+        this.launchMissile(frame, event);
+      }
+    }
+
+    /** ENU frame anchored at the aircraft, used by projectiles so they stay in world space. */
+    aircraftOrigin() {
+      const lla = geofs.aircraft.instance.llaLocation;
+      if (!lla) return null;
+      return Cesium.Transforms.eastNorthUpToFixedFrame(Cesium.Cartesian3.fromDegrees(lla[1], lla[0], lla[2]));
+    }
+
+    fireGunRound(frame, gun) {
+      this.tracerAcc += 1;
+      if (!this.cfg.tracers) return;
+      while (this.tracerAcc >= gun.tracerEvery) {
+        this.tracerAcc -= gun.tracerEvery;
+        const origin = this.aircraftOrigin();
+        if (!origin) return;
+        this.tracers.push({
+          enuMat: origin,
+          t0: performance.now(),
+          v0: add(frame.vel, mul(frame.axes[0], gun.muzzleVelocity)),
+          gun
+        });
+      }
+    }
+
+    /**
+     * Chance that a missile fired from `distanceNm` actually hits, from the
+     * WeaponModule effectiveness window. Unknown profiles always hit.
+     */
+    computeHitChance(metadata, distanceNm) {
+      const engagement = metadata?.engagement_window;
+      const effective = metadata?.effective_range;
+      if (!engagement || !effective) return 1;
+      if (distanceNm < engagement.min || distanceNm > engagement.max) return 0.1;
+      if (distanceNm >= effective.min && distanceNm <= effective.max) return 0.95;
+      const edge = distanceNm < effective.min
+        ? (distanceNm - engagement.min) / Math.max(0.01, effective.min - engagement.min)
+        : (engagement.max - distanceNm) / Math.max(0.01, engagement.max - effective.max);
+      return 0.25 + 0.7 * Math.max(0, Math.min(1, edge));
+    }
+
+    launchMissile(frame, event) {
+      const target = this.combat.targets?.getLockedTarget();
+      if (!target) return;
+      const origin = this.aircraftOrigin();
+      if (!origin) return;
+
+      const projectile = event.metadata?.projectile ?? WeaponModule.defaultMissileMetadata;
+      const now = performance.now();
+      const start = mul(frame.axes[0], 7);
+      const velocity = add(frame.vel, mul(frame.axes[0], projectile.launchSpeed ?? 850));
+      const willHit = Math.random() < this.computeHitChance(event.metadata, target.rangeNm);
+      let missOffset = [0, 0, 0];
+      if (!willHit) {
+        const angle = Math.random() * Math.PI * 2;
+        const distance = 120 + Math.random() * 230;
+        missOffset = [Math.cos(angle) * distance, Math.sin(angle) * distance, (Math.random() - 0.5) * 120];
+      }
+
+      const missile = {
+        enuMat: origin,
+        invEnuMat: Cesium.Matrix4.inverseTransformation(origin, new Cesium.Matrix4()),
+        t0: now,
+        updatedAt: now,
+        maxFlightTime: Math.min(projectile.maxFlightTime ?? 60,
+          Math.max(8, target.rangeNm * NM / 700 + 10)),
+        speed: projectile.speed ?? 900,
+        turnRate: projectile.turnRate ?? 1.2,
+        v0: velocity,
+        start,
+        position: start.slice(),
+        velocity: velocity.slice(),
+        trail: [],
+        targetId: target.id,
+        npcCountermeasureSequence: this.combat.aaCombat?.flareSequence ?? 0,
+        weapon: event.weapon,
+        willHit,
+        missOffset,
+        networkId: !target.isNpc
+          ? Date.now().toString(36) + '-' + (++this.networkMissileSequence).toString(36)
+          : null
+      };
+      this.missiles.push(missile);
+
+      let status = '';
+      if (missile.networkId) {
+        const mp = this.combat.multiplayer;
+        if (!mp || !mp.enabled) {
+          status = 'MP SYNC OFF';
+        } else if (!mp.group) {
+          status = 'MP GROUP MISSING';
+        } else {
+          status = 'MP EVENT SENDING';
+          void mp.sendEvent([3, 'L', missile.networkId, target.id, Date.now()]).then((sent) => {
+            if (sent) this.combat.notify('MISSILE EVENT SENT IN PUBLIC CHAT', 2500);
+          });
+        }
+      }
+      this.combat.notify(`${event.weapon} LAUNCHED: ${target.callsign}${status ? ' | ' + status : ''}`, 1500);
+    }
+
+    sendTerminal(missile, kind) {
+      if (!missile.networkId) return;
+      if (kind === 'H' ? missile.networkHitSent : missile.networkTerminalSent) return;
+      if (kind === 'H') missile.networkHitSent = true;
+      missile.networkTerminalSent = true;
+      void this.combat.multiplayer?.sendEvent([1, kind, missile.networkId, missile.targetId, Date.now()]);
+    }
+
+    // ---- Countermeasures ----
+
+    releaseCountermeasures() {
+      if (!WeaponOverlayModule.isReady()) return;
+      const lla = geofs.aircraft.instance.llaLocation;
+      if (!lla) return;
+      const now = performance.now();
+      const axes = this.combat.overlay?.getFrame()?.axes ?? this.combat.overlay.bodyAxes();
+      const origin = Cesium.Transforms.eastNorthUpToFixedFrame(
+        Cesium.Cartesian3.fromDegrees(lla[1], lla[0], lla[2]));
+      const invOrigin = Cesium.Matrix4.inverseTransformation(origin, new Cesium.Matrix4());
+      const sequence = ++this.countermeasureSequence;
+      for (let i = 0; i < 18; i++) {
+        const lateral = (Math.random() - 0.5) * 8;
+        this.countermeasures.push({
+          type: 'chaff', t0: now, life: 2.2, sequence, origin, invOrigin,
+          offset: add(mul(axes[0], -7), mul(axes[1], lateral)),
+          velocity: add(mul(axes[0], -12 - Math.random() * 8), mul(axes[1], (Math.random() - 0.5) * 12)),
+          size: 1 + Math.random() * 1.5
+        });
+      }
+      for (let i = 0; i < 3; i++) {
+        this.countermeasures.push({
+          type: 'flare', t0: now, life: 1.8, sequence, origin, invOrigin,
+          offset: add(mul(axes[0], -7), mul(axes[1], (Math.random() - 0.5) * 5)),
+          velocity: add(mul(axes[0], -18 - Math.random() * 8), [0, 0, -3 - Math.random() * 4]),
+          size: 3 + Math.random() * 2
+        });
+      }
+      this.combat.audio?.countermeasureSound();
+      const evade = this.combat.multiplayer?.evadeIncomingMissiles();
+      if (!evade || !evade.count) {
+        this.combat.notify('CHAFF / FLARE RELEASED', 1500);
+        return;
+      }
+      this.combat.notify('FLARES RELEASED - REPORTING MISSILE EVADE', 2000);
+      void evade.promise.then((sentCount) => {
+        this.combat.notify(sentCount === evade.count
+          ? 'FLARES RELEASED - MISSILE EVADE SENT'
+          : 'FLARES RELEASED - EVADE MESSAGE NOT SENT', 2000);
+      });
+    }
+
+    /** Static world position of a countermeasure (it no longer follows the aircraft); used as a missile decoy. */
+    decoyWorldPosition(p, nowMs) {
+      const age = Math.max(0, (nowMs - p.t0) / 1000);
+      const local = add(p.offset, add(mul(p.velocity, age), [0, 0, -4.905 * age * age]));
+      return Cesium.Matrix4.multiplyByPoint(p.origin,
+        new Cesium.Cartesian3(local[0], local[1], local[2]), new Cesium.Cartesian3());
+    }
+
+    /** World position of a player countermeasure at time `nowMs`, relative to the aircraft's frame. */
+    countermeasureWorld(p, nowMs, aircraftWorld) {
+      const age = (nowMs - p.t0) / 1000;
+      const aircraftPosition = Cesium.Matrix4.multiplyByPoint(p.invOrigin, aircraftWorld, new Cesium.Cartesian3());
+      const offset = add(aircraftPosition,
+        add(p.offset, add(mul(p.velocity, age), [0, 0, -4.905 * age * age])));
+      return Cesium.Matrix4.multiplyByPoint(p.origin,
+        new Cesium.Cartesian3(offset[0], offset[1], offset[2]), new Cesium.Cartesian3());
+    }
+
+    drawCountermeasures(ctx, frame) {
+      const now = frame.nowMs;
+      this.countermeasures = this.countermeasures.filter((p) => now - p.t0 < p.life * 1000);
+      if (!this.countermeasures.length) return;
+      const lla = geofs.aircraft.instance.llaLocation;
+      if (!lla) return;
+      const aircraftWorld = Cesium.Cartesian3.fromDegrees(lla[1], lla[0], lla[2]);
+      for (const p of this.countermeasures) {
+        const age = (now - p.t0) / 1000;
+        const screen = frame.overlay.worldToScreen(frame.scene, this.countermeasureWorld(p, now, aircraftWorld), true);
+        if (!screen) continue;
+        ctx.globalAlpha = 1 - age / p.life;
+        if (p.type === 'flare') {
+          ctx.fillStyle = '#ffd26a';
+          ctx.shadowColor = '#ff5a18';
+          ctx.shadowBlur = 22;
+          ctx.beginPath();
+          ctx.arc(screen.x, screen.y, p.size * (1 - age / p.life * 0.35) + 3, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.fillStyle = '#e7edf2';
+          ctx.shadowColor = '#d8e4ef';
+          ctx.shadowBlur = 8;
+          ctx.fillRect(screen.x, screen.y, p.size + 2, p.size + 1);
+        }
+      }
+    }
+
+    // ---- Simulation and drawing ----
+
+    isBelowTerrain(scene, world) {
+      if (!scene.globe || !scene.globe.getHeight) return false;
+      const cartographic = Cesium.Cartographic.fromCartesian(world);
+      if (!cartographic) return false;
+      const height = scene.globe.getHeight(cartographic);
+      return height !== undefined && cartographic.height <= height;
+    }
+
+    updateAndDraw(ctx, f) {
+      const aaCombat = this.combat.aaCombat;
+      const targets = this.combat.targets;
+      const impacts = f.overlay.impacts;
+      if (!f.active) this.tracers = [];
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, innerWidth, f.maskY);
+      ctx.clip();
+      this.updateMissiles(ctx, f, aaCombat, targets, impacts);
+      this.updateTracers(ctx, f, aaCombat, impacts);
+      this.drawImpacts(ctx, f, impacts);
+      ctx.restore();
+    }
+
+    updateMissiles(ctx, f, aaCombat, targets, impacts) {
+      const { scene, nowMs } = f;
+      const ballistic = (missile, t) => {
+        const k = (1 - Math.exp(-0.03 * t)) / 0.03;
+        return add(missile.start, add(mul(missile.v0, k), [0, 0, -0.75 * t * t]));
+      };
+      const live = [];
+
+      for (const missile of this.missiles) {
+        const t = (nowMs - missile.t0) / 1000;
+        if (t > missile.maxFlightTime) {
+          this.sendTerminal(missile, 'X');
+          continue;
+        }
+        const target = missile.targetId && targets?.findTarget(missile.targetId);
+        let position;
+        if (target) {
+          if (target.isNpc && missile.npcDecoy && nowMs - missile.npcDecoy.t0 >= missile.npcDecoy.life) {
+            impacts.push({ pos: aaCombat.flareWorldPosition(missile.npcDecoy, nowMs), t0: nowMs });
+            this.combat.notify('PLAYER MISSILE SPOOFED BY BANDIT FLARE', 2000);
+            continue;
+          }
+          if (target.isNpc && !missile.npcDecoy && aaCombat) {
+            const newFlares = aaCombat.getNpcFlares().filter((flare) =>
+              flare.ownerId === target.id
+              && flare.sequence > (missile.npcCountermeasureSequence ?? 0)
+              && nowMs - flare.t0 < flare.life);
+            if (newFlares.length) {
+              missile.npcCountermeasureSequence = Math.max(...newFlares.map((flare) => flare.sequence));
+              if (Math.random() < aaCombat.getDifficulty(target.difficulty).flareChance) {
+                missile.npcDecoy = newFlares[0];
+              }
+            }
+          }
+          const targetWorld = target.isNpc && missile.npcDecoy
+            ? aaCombat.flareWorldPosition(missile.npcDecoy, nowMs)
+            : Cesium.Cartesian3.fromDegrees(target.lon, target.lat, target.alt);
+          const targetLocal = Cesium.Matrix4.multiplyByPoint(
+            missile.invEnuMat, targetWorld, new Cesium.Cartesian3());
+          // A missile that is going to miss homes on a point beside the target.
+          const aim = [targetLocal.x + missile.missOffset[0],
+            targetLocal.y + missile.missOffset[1],
+            targetLocal.z + missile.missOffset[2]];
+          const delta = [aim[0] - missile.position[0], aim[1] - missile.position[1], aim[2] - missile.position[2]];
+          const distance = Math.hypot(delta[0], delta[1], delta[2]);
+          const dt = Math.min(0.1, Math.max(0, (nowMs - missile.updatedAt) / 1000));
+          if (distance <= missile.speed * dt + 15) {
+            const impactPosition = worldPosition(missile.enuMat, aim);
+            if (target.isNpc && missile.npcDecoy) {
+              this.combat.notify('PLAYER MISSILE DECOYED BY BANDIT FLARE', 2000);
+            } else if (!missile.willHit) {
+              this.combat.notify(`${missile.weapon} MISSED`, 2000);
+              this.sendTerminal(missile, 'X');
+            } else if (target.isNpc) {
+              aaCombat?.damageNpcAtWorldPosition(impactPosition, 3, 'MISSILE');
+            } else {
+              this.sendTerminal(missile, 'H');
+            }
+            impacts.push({ pos: impactPosition, t0: nowMs });
+            continue;
+          }
+          if (distance > 0) {
+            missile.velocity = turnVelocity(missile.velocity, delta, missile.turnRate * dt);
+            const velocityLength = Math.hypot(...missile.velocity) || 1;
+            missile.velocity = mul(missile.velocity, missile.speed / velocityLength);
+            missile.position = add(missile.position, mul(missile.velocity, dt));
+            missile.updatedAt = nowMs;
+          }
+          position = missile.position;
+        } else {
+          // Target lost: fly the launch trajectory ballistically.
+          position = ballistic(missile, t);
+        }
+
+        const world = worldPosition(missile.enuMat, position);
+        if (this.isBelowTerrain(scene, world)) {
+          this.sendTerminal(missile, 'X');
+          impacts.push({ pos: world, t0: nowMs });
+          continue;
+        }
+        live.push(missile);
+
+        const lastPoint = missile.trail[missile.trail.length - 1];
+        if (!lastPoint || Math.hypot(position[0] - lastPoint.position[0],
+          position[1] - lastPoint.position[1], position[2] - lastPoint.position[2]) >= 5
+          || nowMs - lastPoint.t0 >= 75) {
+          missile.trail.push({ position: position.slice(), t0: nowMs });
+        }
+        missile.trail = missile.trail.filter((point) => nowMs - point.t0 < TRAIL_LIFE_MS);
+
+        if (f.active) this.drawMissile(ctx, f, missile, position);
+      }
+      this.missiles = live;
+    }
+
+    drawMissile(ctx, f, missile, position) {
+      const { scene, nowMs, overlay } = f;
+      ctx.save();
+      ctx.strokeStyle = '#ffffff';
+      ctx.shadowColor = '#ffffff';
+      for (let i = 1; i < missile.trail.length; i++) {
+        const previousPoint = missile.trail[i - 1];
+        const currentPoint = missile.trail[i];
+        const fade = Math.max(0, 1 - (nowMs - currentPoint.t0) / TRAIL_LIFE_MS);
+        const a = overlay.toScreen(missile.enuMat, scene, previousPoint.position, true);
+        const b = overlay.toScreen(missile.enuMat, scene, currentPoint.position, true);
+        if (!a || !b) continue;
+        ctx.globalAlpha = 0.25 * fade;
+        ctx.lineWidth = 1 + 2 * fade;
+        ctx.shadowBlur = 4 * fade;
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      }
+
+      const current = overlay.toScreen(missile.enuMat, scene, position, true);
+      const previous = missile.trail.length > 1
+        ? overlay.toScreen(missile.enuMat, scene, missile.trail[missile.trail.length - 2].position, true)
+        : null;
+      if (current) {
+        if (previous) {
+          const angle = Math.atan2(current.y - previous.y, current.x - previous.x);
+          ctx.globalAlpha = 0.85;
+          ctx.strokeStyle = '#ffb06a';
+          ctx.shadowColor = '#ff7a24';
+          ctx.shadowBlur = 9;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(current.x - Math.cos(angle) * 2, current.y - Math.sin(angle) * 2);
+          ctx.lineTo(current.x - Math.cos(angle) * 10, current.y - Math.sin(angle) * 10);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 0.9;
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = '#ffffff';
+        ctx.shadowBlur = 5;
+        ctx.beginPath();
+        ctx.arc(current.x, current.y, 1.7, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    updateTracers(ctx, f, aaCombat, impacts) {
+      if (!this.cfg.tracers) { this.tracers = []; return; }
+      const { scene, nowMs, overlay } = f;
+      const alive = [];
+      ctx.save();
+      for (const tracer of this.tracers) {
+        const gun = tracer.gun;
+        const offs = (t) => {
+          const k = (1 - Math.exp(-gun.drag * t)) / gun.drag;
+          return [tracer.v0[0] * k, tracer.v0[1] * k, tracer.v0[2] * k - 0.5 * gun.gravity * t * t];
+        };
+        const t = (nowMs - tracer.t0) / 1000;
+        if (t > 3) continue;
+        const pa = offs(t);
+        const world = worldPosition(tracer.enuMat, pa);
+        if (this.isBelowTerrain(scene, world)) {
+          impacts.push({ pos: world, t0: nowMs });
+          continue;
+        }
+        if (aaCombat?.damageNpcAtWorldPosition(world, 1, 'GUN')) continue;
+        alive.push(tracer);
+        if (!f.active || Math.hypot(pa[0], pa[1], pa[2]) < gun.tracerMinDist) continue;
+        const a = overlay.toScreen(tracer.enuMat, scene, pa, true);
+        const b = overlay.toScreen(tracer.enuMat, scene, offs(Math.max(0, t - 0.05)), true);
+        if (!a || !b) continue;
+        ctx.strokeStyle = gun.tracerColor;
+        ctx.shadowColor = gun.tracerColor;
+        ctx.shadowBlur = 6;
+        ctx.lineWidth = Math.max(1.5, f.ang(0.15));
+        ctx.beginPath();
+        ctx.moveTo(b.x, b.y);
+        ctx.lineTo(a.x, a.y);
+        ctx.stroke();
+      }
+      ctx.restore();
+      this.tracers = alive;
+    }
+
+    drawImpacts(ctx, f, impacts) {
+      const { scene, nowMs, overlay } = f;
+      for (let i = impacts.length - 1; i >= 0; i--) {
+        if (nowMs - impacts[i].t0 >= IMPACT_LIFE_MS) impacts.splice(i, 1);
+      }
+      if (!f.active) return;
+      ctx.save();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = WeaponModule.gunMetadata.impactColor;
+      for (const impact of impacts) {
+        const s = overlay.worldToScreen(scene, impact.pos, true);
+        if (!s) continue;
+        const k = 1 - (nowMs - impact.t0) / IMPACT_LIFE_MS;
+        ctx.globalAlpha = k;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, 2 + 6 * k, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+
+  window.ProjectileModule = ProjectileModule;
+})();
+
+(function () {
+  'use strict';
+
+  const { add, mul, DEG, R_EARTH, NM, normalizeHeading, angleDifference, moveGeoPoint, turnVelocity, worldPosition } = CombatMath;
+
+  const NPC_ID_PREFIX = 'addon-bandit-';
+  const NPC_HIT_RADIUS_M = 28;
+  const NPC_FLARE_RANGE_M = 1800;
+  const POI_STORAGE_KEY = 'geofs-addon-combat-aa-poi';
+  const DIFFICULTY_NAMES = ['Easy', 'Basic', 'Standard', 'Advanced', 'Expert', 'Hard'];
+
+  const DIFFICULTY_SETTINGS = [
+    { speed: 160, turnRate: 12, attackRangeNm: 8, attackDelay: 14000, missileSpeed: 700, missileTurnRate: 1.1, flareChance: 0.25 },
+    { speed: 185, turnRate: 16, attackRangeNm: 10, attackDelay: 13000, missileSpeed: 750, missileTurnRate: 1.25, flareChance: 0.35 },
+    { speed: 210, turnRate: 20, attackRangeNm: 12, attackDelay: 12000, missileSpeed: 800, missileTurnRate: 1.4, flareChance: 0.45 },
+    { speed: 235, turnRate: 24, attackRangeNm: 14, attackDelay: 11000, missileSpeed: 850, missileTurnRate: 1.55, flareChance: 0.58 },
+    { speed: 265, turnRate: 30, attackRangeNm: 16, attackDelay: 10000, missileSpeed: 950, missileTurnRate: 1.75, flareChance: 0.72 },
+    { speed: 300, turnRate: 36, attackRangeNm: 20, attackDelay: 9000, missileSpeed: 1050, missileTurnRate: 2, flareChance: 0.84 }
+  ];
+
+  /**
+   * A/A combat simulation: AI bandits that fly towards the player, launch
+   * missiles and pop flares, plus the 30 NM mini-radar and bandit HUD markers.
+   * Bandits are exposed to TargetModule as a contact provider, and they take
+   * damage from ProjectileModule via `damageNpcAtWorldPosition`.
+   * The loadout and ammo remain owned by WeaponModule.
+   */
+  class AACombatModule {
+    constructor(combat, config = {}) {
+      this.combat = combat;
+      combat.aaCombat = this;
+      this.cfg = { ...config };
+      this.active = false;
+      this.npcs = [];
+      this.kills = 0;
+      this.hits = 0;
+      this.hitsTaken = 0;
+      this.npcMissiles = [];
+      this.npcFlares = [];
+      this.flareSequence = 0;
+      this.npcSequence = 0;
+      this.selectedDifficulty = 3;
+      this.selectedBanditCount = 1;
+      this.showBanditHudPoi = CombatMath.readStorage(POI_STORAGE_KEY, true) !== false;
+      this.lastUiUpdate = 0;
+      this.statusElement = null;
+      this.startButton = null;
+      this.stopButton = null;
+      this.unsubscribers = [];
+    }
+
+    start() {
+      const overlay = this.combat.overlay;
+      if (!overlay) return;
+      this.unsubscribers.push(
+        this.combat.targets?.registerProvider(() => this.getNpcContacts()) ?? (() => {}),
+        overlay.registerLayer('aa-sim', 3, (ctx, f) => this.updateSimulation(f)),
+        overlay.registerLayer('aa-npc-flares', 20, (ctx, f) => this.drawNpcFlares(ctx, f)),
+        overlay.registerLayer('aa-npc-missiles', 30, (ctx, f) => this.updateAndDrawNpcMissiles(ctx, f)),
+        overlay.registerLayer('aa-hud-poi', 70, (ctx, f) => this.drawHudTargets(ctx, f)),
+        overlay.registerLayer('aa-mini-radar', 80, (ctx, f) => this.drawMiniRadar(ctx, f)),
+        overlay.onAircraftChange(() => { if (this.active) this.stopSimulation('A/A SIM STOPPED'); })
+      );
+      this.mountOptions();
+    }
+
+    stop() {
+      if (this.active) this.stopSimulation();
+      for (const unsubscribe of this.unsubscribers) unsubscribe();
+      this.unsubscribers = [];
+    }
+
+    getDifficulty(level) {
+      const index = Math.max(1, Math.min(DIFFICULTY_SETTINGS.length, Number(level) || 1)) - 1;
+      return DIFFICULTY_SETTINGS[index];
+    }
+
+    getNpcFlares() {
+      return this.npcFlares;
+    }
+
+    getNpcContacts() {
+      if (!this.active) return [];
+      return this.npcs.map((npc) => ({
+        id: npc.id, callsign: npc.callsign, lat: npc.lat, lon: npc.lon, alt: npc.alt,
+        isNpc: true, health: npc.health, difficulty: npc.difficulty
+      }));
+    }
+
+    // ---- Simulation control ----
+
+    startSimulation() {
+      if (!WeaponOverlayModule.isReady()) {
+        this.combat.notify('A/A SIM REQUIRES THE AIRCRAFT TO BE READY', 2500);
+        return;
+      }
+      const own = geofs.aircraft.instance.llaLocation;
+      if (!Array.isArray(own) || !Number.isFinite(own[0]) || !Number.isFinite(own[1]) || !Number.isFinite(own[2])) {
+        this.combat.notify('A/A SIM: AIRCRAFT POSITION UNAVAILABLE', 2500);
+        return;
+      }
+
+      const now = performance.now();
+      this.removePlayerMissilesAtNpcs(new Set(this.npcs.map((npc) => npc.id)));
+      this.npcMissiles = [];
+      if (this.combat.projectile) this.combat.projectile.tracers = [];
+      const difficulty = this.selectedDifficulty;
+      const settings = this.getDifficulty(difficulty);
+
+      this.active = true;
+      this.npcs = Array.from({ length: this.selectedBanditCount }, (_, index) => {
+        const side = index % 2 === 0 ? 1 : -1;
+        const distanceNm = Math.sqrt(5 ** 2 + Math.random() * (30 ** 2 - 5 ** 2));
+        const bearing = Math.random() * Math.PI * 2;
+        const distanceMeters = distanceNm * NM;
+        const position = moveGeoPoint(own[0], own[1],
+          Math.cos(bearing) * distanceMeters, Math.sin(bearing) * distanceMeters);
+        const sequence = ++this.npcSequence;
+        return {
+          id: NPC_ID_PREFIX + sequence,
+          callsign: `BANDIT ${index + 1}`,
+          lat: position.lat,
+          lon: position.lon,
+          alt: Math.max(0, Number(own[2]) + 150 + (index % 3) * 80),
+          heading: Math.random() * 360,
+          lastUpdate: now,
+          elapsed: 0,
+          health: 3,
+          side,
+          difficulty,
+          nextAttackAt: now + settings.attackDelay * 0.5 + index * 1700,
+          nextFlareAt: now + 3000 + index * 900
+        };
+      });
+      this.npcFlares = [];
+
+      const targets = this.combat.targets;
+      if (targets) {
+        targets.targetMode = true;
+        targets.selectedTargetId = this.npcs[0]?.id ?? null;
+        targets.lockedTargetId = null;
+        targets.refresh(true);
+      }
+      this.combat.notify(`A/A SIM STARTED - ${this.selectedBanditCount} BANDIT(S), DIFFICULTY ${difficulty}/6`, 2500);
+      this.updateOptions();
+    }
+
+    stopSimulation(message = 'A/A SIM STOPPED') {
+      const npcIds = new Set(this.npcs.map((npc) => npc.id));
+      this.active = false;
+      this.npcs = [];
+      this.removePlayerMissilesAtNpcs(npcIds);
+      this.npcMissiles = [];
+      this.npcFlares = [];
+      if (this.combat.projectile) this.combat.projectile.tracers = [];
+      const targets = this.combat.targets;
+      if (targets) {
+        if (npcIds.has(targets.selectedTargetId)) targets.selectedTargetId = null;
+        if (npcIds.has(targets.lockedTargetId)) targets.lockedTargetId = null;
+        targets.refresh(true);
+      }
+      this.combat.notify(message, 2000);
+      this.updateOptions();
+    }
+
+    removePlayerMissilesAtNpcs(npcIds) {
+      const projectile = this.combat.projectile;
+      if (projectile) projectile.missiles = projectile.missiles.filter((m) => !npcIds.has(m.targetId));
+    }
+
+    updateSimulation(f) {
+      if (f.nowMs - this.lastUiUpdate > 1000) {
+        this.lastUiUpdate = f.nowMs;
+        this.mountOptions();
+        this.updateOptions();
+      }
+      if (!this.active || !this.npcs.length) return;
+      const own = geofs.aircraft.instance.llaLocation;
+      if (!Array.isArray(own) || !Number.isFinite(own[0]) || !Number.isFinite(own[1])) return;
+      for (const npc of this.npcs) this.updateNpc(npc, own, f.nowMs, f.dt);
+    }
+
+    updateNpc(npc, own, now, dt) {
+      const settings = this.getDifficulty(npc.difficulty);
+      const dLon = (own[1] - npc.lon) * DEG;
+      const lat1 = npc.lat * DEG;
+      const lat2 = own[0] * DEG;
+      const y = Math.sin(dLon) * Math.cos(lat2);
+      const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+      const bearingToPlayer = normalizeHeading(Math.atan2(y, x) / DEG);
+      npc.elapsed += dt;
+
+      const maneuver = Math.sin(npc.elapsed * 0.32) * (12 + npc.difficulty * 2);
+      const desiredHeading = normalizeHeading(bearingToPlayer + npc.side * (8 + maneuver));
+      const maxTurn = settings.turnRate * dt;
+      npc.heading = normalizeHeading(
+        npc.heading + Math.max(-maxTurn, Math.min(maxTurn, angleDifference(npc.heading, desiredHeading))));
+
+      const headingRad = npc.heading * DEG;
+      const travel = settings.speed * dt;
+      const position = moveGeoPoint(npc.lat, npc.lon, Math.cos(headingRad) * travel, Math.sin(headingRad) * travel);
+      npc.lat = position.lat;
+      npc.lon = position.lon;
+      npc.alt = Math.max(30, npc.alt + Math.sin(npc.elapsed * 0.7) * 8 * dt);
+      npc.lastUpdate = now;
+
+      const ownWorld = Cesium.Cartesian3.fromDegrees(own[1], own[0], own[2]);
+      const npcWorld = Cesium.Cartesian3.fromDegrees(npc.lon, npc.lat, npc.alt);
+      const range = Cesium.Cartesian3.distance(ownWorld, npcWorld);
+      const playerMissiles = this.combat.projectile?.missiles ?? [];
+      const incomingMissile = playerMissiles.some((missile) => {
+        if (missile.targetId !== npc.id) return false;
+        const missileWorld = worldPosition(missile.enuMat, missile.position);
+        return Cesium.Cartesian3.distance(missileWorld, npcWorld) <= NPC_FLARE_RANGE_M;
+      });
+      if (incomingMissile && now >= npc.nextFlareAt) {
+        this.releaseNpcFlares(npc, now);
+        npc.nextFlareAt = now + Math.max(3500, 11000 - npc.difficulty * 1000) + Math.random() * 2500;
+        this.combat.notify(`${npc.callsign} FLARES - MISSILE SEEKER MAY BE DECOYED`, 2200);
+      }
+      const alreadyLaunched = this.npcMissiles.some((missile) => missile.sourceId === npc.id);
+      if (now >= npc.nextAttackAt && range <= settings.attackRangeNm * NM && !alreadyLaunched) {
+        const direction = Cesium.Cartesian3.subtract(ownWorld, npcWorld, new Cesium.Cartesian3());
+        Cesium.Cartesian3.normalize(direction, direction);
+        const velocity = Cesium.Cartesian3.multiplyByScalar(direction, settings.missileSpeed, new Cesium.Cartesian3());
+        this.npcMissiles.push({
+          sourceId: npc.id,
+          callsign: npc.callsign,
+          position: npcWorld,
+          lastTargetWorld: Cesium.Cartesian3.clone(ownWorld),
+          velocity,
+          t0: now,
+          updatedAt: now,
+          maxFlightTime: 60,
+          speed: settings.missileSpeed,
+          turnRate: settings.missileTurnRate,
+          trail: [],
+          countermeasureSequence: this.combat.projectile?.countermeasureSequence ?? 0
+        });
+        npc.nextAttackAt = now + settings.attackDelay + Math.random() * settings.attackDelay * 0.35;
+        this.combat.notify(`${npc.callsign} MISSILE LAUNCH - BREAK / BACKSPACE`, 2500);
+      }
+    }
+
+    releaseNpcFlares(npc, now) {
+      const origin = Cesium.Transforms.eastNorthUpToFixedFrame(
+        Cesium.Cartesian3.fromDegrees(npc.lon, npc.lat, npc.alt));
+      const heading = npc.heading * DEG;
+      const forward = [Math.sin(heading), Math.cos(heading), 0];
+      const right = [Math.cos(heading), -Math.sin(heading), 0];
+      const sequence = ++this.flareSequence;
+      for (let i = 0; i < 4; i++) {
+        this.npcFlares.push({
+          type: 'flare',
+          ownerId: npc.id,
+          sequence,
+          t0: now,
+          life: 1800, // milliseconds
+          origin,
+          offset: add(mul(forward, -8), mul(right, (Math.random() - 0.5) * 7)),
+          velocity: add(mul(forward, -18 - Math.random() * 8),
+            add(mul(right, (Math.random() - 0.5) * 9), [0, 0, 3 + Math.random() * 3]))
+        });
+      }
+    }
+
+    flareWorldPosition(flare, now) {
+      const age = Math.max(0, (now - flare.t0) / 1000);
+      const local = add(flare.offset, add(mul(flare.velocity, age), [0, 0, -4.905 * age * age]));
+      return Cesium.Matrix4.multiplyByPoint(flare.origin,
+        new Cesium.Cartesian3(local[0], local[1], local[2]), new Cesium.Cartesian3());
+    }
+
+    drawNpcFlares(ctx, f) {
+      if (!this.npcFlares.length) return;
+      this.npcFlares = this.npcFlares.filter((flare) => f.nowMs - flare.t0 < flare.life);
+      ctx.fillStyle = '#ffd26a';
+      ctx.shadowColor = '#ff5a18';
+      ctx.shadowBlur = 18;
+      for (const flare of this.npcFlares) {
+        const screen = f.overlay.worldToScreen(f.scene, this.flareWorldPosition(flare, f.nowMs), true);
+        if (!screen) continue;
+        ctx.globalAlpha = Math.max(0, 1 - (f.nowMs - flare.t0) / flare.life);
+        ctx.beginPath();
+        ctx.arc(screen.x, screen.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // ---- Bandit missiles ----
+
+    updateAndDrawNpcMissiles(ctx, f) {
+      if (!this.npcMissiles.length) return;
+      const own = geofs.aircraft.instance.llaLocation;
+      if (!Array.isArray(own) || own.length < 3) return;
+      const now = f.nowMs;
+      const ownWorld = Cesium.Cartesian3.fromDegrees(own[1], own[0], own[2]);
+      const projectile = this.combat.projectile;
+      const live = [];
+
+      for (const missile of this.npcMissiles) {
+        const age = (now - missile.t0) / 1000;
+        if (age > missile.maxFlightTime) {
+          this.combat.notify('BANDIT MISSILE EXPIRED', 1500);
+          continue;
+        }
+        if (missile.decoy && now - missile.decoy.t0 >= missile.decoy.life * 1000) {
+          missile.decoy = null;
+          missile.lastTargetWorld = Cesium.Cartesian3.clone(ownWorld);
+        }
+
+        const newCountermeasures = (projectile?.getCountermeasures() ?? []).filter((item) =>
+          item.sequence > missile.countermeasureSequence && now - item.t0 < item.life * 1000);
+        if (newCountermeasures.length) {
+          missile.countermeasureSequence = Math.max(...newCountermeasures.map((item) => item.sequence));
+          const flares = newCountermeasures.filter((item) => item.type === 'flare');
+          const chaff = newCountermeasures.filter((item) => item.type === 'chaff');
+          const decoy = flares[0] || chaff[0];
+          const decoyChance = flares.length ? 0.78 : 0.3;
+          if (decoy && Math.random() < decoyChance) {
+            missile.decoy = decoy;
+            missile.lastTargetWorld = projectile.decoyWorldPosition(decoy, now);
+            this.combat.notify(`${decoy.type.toUpperCase()} DECOYING BANDIT MISSILE`, 1800);
+          }
+        }
+
+        const target = missile.decoy ? projectile.decoyWorldPosition(missile.decoy, now) : ownWorld;
+        const delta = Cesium.Cartesian3.subtract(target, missile.position, new Cesium.Cartesian3());
+        const distance = Cesium.Cartesian3.magnitude(delta);
+        const dt = Math.min(0.25, Math.max(0, (now - missile.updatedAt) / 1000));
+        const previousPosition = missile.position;
+        let nextPosition = previousPosition;
+        if (distance > 0 && dt > 0) {
+          missile.velocity = turnVelocity(
+            [missile.velocity.x, missile.velocity.y, missile.velocity.z],
+            [delta.x, delta.y, delta.z],
+            missile.turnRate * dt);
+          const speed = Math.hypot(...missile.velocity) || 1;
+          missile.velocity = mul(missile.velocity, missile.speed / speed);
+          nextPosition = Cesium.Cartesian3.add(previousPosition,
+            Cesium.Cartesian3.multiplyByScalar(new Cesium.Cartesian3(...missile.velocity), dt, new Cesium.Cartesian3()),
+            new Cesium.Cartesian3());
+        }
+
+        // Closest approach in the target's frame, so fast passes cannot tunnel through.
+        const previousTarget = missile.lastTargetWorld || target;
+        const relativeStart = Cesium.Cartesian3.subtract(previousPosition, previousTarget, new Cesium.Cartesian3());
+        const relativeEnd = Cesium.Cartesian3.subtract(nextPosition, target, new Cesium.Cartesian3());
+        const relativeTravel = Cesium.Cartesian3.subtract(relativeEnd, relativeStart, new Cesium.Cartesian3());
+        const travelSquared = Cesium.Cartesian3.dot(relativeTravel, relativeTravel);
+        const closestFraction = travelSquared > 0
+          ? Math.max(0, Math.min(1, -Cesium.Cartesian3.dot(relativeStart, relativeTravel) / travelSquared))
+          : 0;
+        const closestPoint = Cesium.Cartesian3.add(relativeStart,
+          Cesium.Cartesian3.multiplyByScalar(relativeTravel, closestFraction, new Cesium.Cartesian3()),
+          new Cesium.Cartesian3());
+        const hitRadius = missile.decoy ? 10 : 55;
+        if (Cesium.Cartesian3.magnitude(closestPoint) <= hitRadius) {
+          if (missile.decoy) {
+            this.combat.notify(`BANDIT MISSILE DEFEATED BY ${missile.decoy.type.toUpperCase()}`, 2000);
+          } else {
+            this.hitsTaken++;
+            this.combat.notify('SIMULATED MISSILE HIT - EVADE WITH BACKSPACE', 2500);
+            this.updateOptions();
+          }
+          continue;
+        }
+
+        missile.position = nextPosition;
+        missile.lastTargetWorld = Cesium.Cartesian3.clone(target);
+        missile.updatedAt = now;
+        missile.trail.push(Cesium.Cartesian3.clone(missile.position));
+        if (missile.trail.length > 12) missile.trail.shift();
+        live.push(missile);
+
+        ctx.save();
+        ctx.strokeStyle = '#ff5555';
+        ctx.fillStyle = '#ff5555';
+        ctx.shadowColor = '#ff3333';
+        ctx.shadowBlur = 8;
+        ctx.lineWidth = 2;
+        for (let i = 1; i < missile.trail.length; i++) {
+          const from = f.overlay.worldToScreen(f.scene, missile.trail[i - 1], true);
+          const to = f.overlay.worldToScreen(f.scene, missile.trail[i], true);
+          if (!from || !to) continue;
+          ctx.globalAlpha = i / missile.trail.length;
+          ctx.beginPath();
+          ctx.moveTo(from.x, from.y);
+          ctx.lineTo(to.x, to.y);
+          ctx.stroke();
+        }
+        const screen = f.overlay.worldToScreen(f.scene, missile.position, true);
+        if (screen) {
+          ctx.globalAlpha = 1;
+          ctx.beginPath();
+          ctx.arc(screen.x, screen.y, 4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+      this.npcMissiles = live;
+    }
+
+    // ---- Damage ----
+
+    /** Applies damage to the bandit closest to a world position; returns true when one was hit. */
+    damageNpcAtWorldPosition(world, damage = 1, source = 'GUN') {
+      if (!this.active || !this.npcs.length || !world) return false;
+      let hitNpc = null;
+      let nearest = NPC_HIT_RADIUS_M;
+      for (const npc of this.npcs) {
+        const distance = Cesium.Cartesian3.distance(world, Cesium.Cartesian3.fromDegrees(npc.lon, npc.lat, npc.alt));
+        if (distance <= nearest) {
+          nearest = distance;
+          hitNpc = npc;
+        }
+      }
+      if (!hitNpc) return false;
+
+      hitNpc.health -= damage;
+      this.hits++;
+      if (hitNpc.health <= 0) {
+        this.kills++;
+        const npcId = hitNpc.id;
+        this.npcs = this.npcs.filter((npc) => npc.id !== npcId);
+        this.removePlayerMissilesAtNpcs(new Set([npcId]));
+        this.npcMissiles = this.npcMissiles.filter((missile) => missile.sourceId !== npcId);
+        this.npcFlares = this.npcFlares.filter((flare) => flare.ownerId !== npcId);
+        const targets = this.combat.targets;
+        if (targets) {
+          if (targets.selectedTargetId === npcId) targets.selectedTargetId = this.npcs[0]?.id ?? null;
+          if (targets.lockedTargetId === npcId) targets.lockedTargetId = null;
+        }
+        if (!this.npcs.length) {
+          this.stopSimulation(`ALL BANDITS DESTROYED - KILL ${this.kills}`);
+        } else {
+          this.combat.notify(`${hitNpc.callsign} DESTROYED - ${this.npcs.length} LEFT`, 2000);
+          this.updateOptions();
+        }
+      } else {
+        this.combat.notify(`${hitNpc.callsign} HIT (${source}) - ${hitNpc.health} HIT(S) LEFT`, 1800);
+        this.updateOptions();
+      }
+      return true;
+    }
+
+    // ---- HUD markers and mini-radar ----
+
+    drawHudTargets(ctx, f) {
+      if (!f.active || !this.active || !this.showBanditHudPoi) return;
+      const targets = (this.combat.targets?.currentTargets ?? []).filter((t) => t.isNpc);
+      if (!targets.length) return;
+
+      const { scene, overlay } = f;
+      const camera = scene.camera;
+      const margin = 28;
+      const centerX = innerWidth / 2;
+      const centerY = innerHeight / 2;
+      const selectedId = this.combat.targets.selectedTargetId;
+
+      ctx.font = 'bold 12px monospace';
+      ctx.textBaseline = 'middle';
+      for (const target of targets) {
+        const world = Cesium.Cartesian3.fromDegrees(target.lon, target.lat, target.alt);
+        const point = overlay.worldToScreen(scene, world);
+        const toTarget = Cesium.Cartesian3.subtract(world, camera.positionWC, new Cesium.Cartesian3());
+        const inFront = Cesium.Cartesian3.dot(toTarget, camera.directionWC) > 0;
+        let x;
+        let y;
+        let onScreen = false;
+        if (point && inFront) {
+          x = point.x;
+          y = point.y;
+          onScreen = x >= margin && x <= innerWidth - margin && y >= margin && y <= innerHeight - margin;
+        }
+        if (!onScreen) {
+          let directionX;
+          let directionY;
+          if (point && inFront) {
+            directionX = x - centerX;
+            directionY = y - centerY;
+          } else {
+            const bearing = target.relativeBearing * DEG;
+            directionX = Math.sin(bearing);
+            directionY = -Math.cos(bearing);
+          }
+          const length = Math.hypot(directionX, directionY) || 1;
+          directionX /= length;
+          directionY /= length;
+          const edgeScale = Math.min(
+            (innerWidth / 2 - margin) / Math.max(Math.abs(directionX), 0.001),
+            (innerHeight / 2 - margin) / Math.max(Math.abs(directionY), 0.001));
+          x = centerX + directionX * edgeScale;
+          y = centerY + directionY * edgeScale;
+        }
+
+        const selected = target.id === selectedId;
+        const color = selected ? '#ffffff' : '#ffab55';
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 7;
+        ctx.lineWidth = selected ? 2.5 : 1.5;
+        if (onScreen) {
+          const size = selected ? 24 : 18;
+          ctx.strokeRect(x - size / 2, y - size / 2, size, size);
+        } else {
+          ctx.translate(x, y);
+          ctx.rotate(Math.atan2(y - centerY, x - centerX) + Math.PI / 2);
+          ctx.beginPath();
+          ctx.moveTo(0, -9);
+          ctx.lineTo(7, 7);
+          ctx.lineTo(-7, 7);
+          ctx.closePath();
+          ctx.fill();
+          ctx.setTransform(f.dpr, 0, 0, f.dpr, 0, 0);
+        }
+        const labelX = Math.min(x + 14, innerWidth - 140);
+        const labelY = Math.max(margin + 5, Math.min(y, innerHeight - margin - 5));
+        ctx.textAlign = labelX > innerWidth - 150 ? 'right' : 'left';
+        ctx.fillText(`${target.callsign} ${target.rangeNm.toFixed(1)}NM`,
+          ctx.textAlign === 'right' ? Math.max(margin + 5, x - 14) : labelX, labelY);
+        ctx.restore();
+      }
+    }
+
+    drawMiniRadar(ctx, f) {
+      if (!f.active || !this.active) return;
+      const radius = 66;
+      const centerX = innerWidth - radius - 24;
+      const centerY = innerHeight - radius - 42;
+      const rangeNm = 30;
+      const pixelsPerNm = radius / rangeNm;
+      const ownHeading = Number(geofs.animation.values.heading360 || geofs.animation.values.heading) || 0;
+      const own = geofs.aircraft.instance.llaLocation;
+
+      ctx.fillStyle = 'rgba(0, 18, 12, 0.78)';
+      ctx.strokeStyle = '#94ffaf';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.globalAlpha = 0.5;
+      for (const ring of [10, 20, 30]) {
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, ring * pixelsPerNm, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      ctx.moveTo(centerX - radius, centerY);
+      ctx.lineTo(centerX + radius, centerY);
+      ctx.moveTo(centerX, centerY - radius);
+      ctx.lineTo(centerX, centerY + radius);
+      ctx.stroke();
+
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#94ffaf';
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, 3, 0, Math.PI * 2);
+      ctx.fill();
+      for (const target of this.combat.targets?.currentTargets ?? []) {
+        if (target.rangeNm > rangeNm) continue;
+        const angle = angleDifference(ownHeading, target.bearing) * DEG;
+        ctx.fillStyle = target.isNpc ? '#ffab55' : '#61d9ff';
+        ctx.beginPath();
+        ctx.arc(centerX + Math.sin(angle) * target.rangeNm * pixelsPerNm,
+          centerY - Math.cos(angle) * target.rangeNm * pixelsPerNm, target.isNpc ? 4 : 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      for (const missile of this.npcMissiles) {
+        const position = Cesium.Cartographic.fromCartesian(missile.position);
+        if (!position || !own) continue;
+        const north = (position.latitude / DEG - own[0]) * DEG * R_EARTH;
+        const east = (position.longitude / DEG - own[1]) * DEG * R_EARTH * Math.cos(own[0] * DEG);
+        const bearing = normalizeHeading(Math.atan2(east, north) / DEG);
+        const range = Math.hypot(north, east) / NM;
+        if (range > rangeNm) continue;
+        const angle = angleDifference(ownHeading, bearing) * DEG;
+        ctx.fillStyle = '#ff4040';
+        ctx.fillRect(centerX + Math.sin(angle) * range * pixelsPerNm - 2,
+          centerY - Math.cos(angle) * range * pixelsPerNm - 2, 4, 4);
+      }
+      ctx.font = 'bold 11px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#94ffaf';
+      ctx.fillText('A/A RADAR 30 NM', centerX, centerY - radius - 8);
+      ctx.font = '9px monospace';
+      ctx.fillText('N', centerX, centerY - radius + 11);
+      ctx.fillStyle = '#ffab55';
+      ctx.fillText('BANDIT', centerX - 25, centerY + radius + 18);
+      ctx.fillStyle = '#ff4040';
+      ctx.fillText('MISSILE', centerX + 27, centerY + radius + 18);
+    }
+
+    // ---- Options -> General UI ----
+
+    mountOptions() {
+      const mounted = CombatMath.ensureGeneralFieldset('addon-combat-aa', 'A/A Combat Simulation',
+        'Choose difficulty (1 easy to 6 hardest) and 1-10 bandits. Each bandit spawns at a random spot 5-30 NM away, facing a random heading. Settings apply when you start/restart. Bandits fire training missiles and use flares; evade incoming missiles with Backspace. The 30 NM mini-radar appears during the simulation.');
+      if (!mounted) return;
+      if (!mounted.controls.dataset.built || !this.statusElement?.isConnected) {
+        mounted.controls.dataset.built = '1';
+        this.buildOptions(mounted.controls);
+      }
+    }
+
+    buildOptions(container) {
+      container.replaceChildren();
+      this.statusElement = document.createElement('p');
+      container.appendChild(this.statusElement);
+
+      const settings = document.createElement('div');
+      Object.assign(settings.style, { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', margin: '8px 0' });
+      settings.append(
+        CombatMath.makeSelect('Difficulty (1 easy - 6 hard)', this.selectedDifficulty, [1, 2, 3, 4, 5, 6],
+          (value) => { this.selectedDifficulty = value; }, 'A/A simulation difficulty',
+          (value) => `${value} - ${DIFFICULTY_NAMES[value - 1]}`),
+        CombatMath.makeSelect('Bandits', this.selectedBanditCount, Array.from({ length: 10 }, (_, i) => i + 1),
+          (value) => { this.selectedBanditCount = value; }, 'Number of A/A simulation bandits')
+      );
+      const poiLabel = document.createElement('label');
+      Object.assign(poiLabel.style, { display: 'flex', alignItems: 'center', gap: '6px' });
+      const poiCheckbox = document.createElement('input');
+      poiCheckbox.type = 'checkbox';
+      poiCheckbox.checked = this.showBanditHudPoi;
+      poiCheckbox.setAttribute('aria-label', 'Show bandit HUD points of interest');
+      poiCheckbox.addEventListener('change', (event) => {
+        event.stopPropagation();
+        this.showBanditHudPoi = poiCheckbox.checked;
+        CombatMath.writeStorage(POI_STORAGE_KEY, this.showBanditHudPoi);
+      });
+      poiCheckbox.addEventListener('click', (event) => event.stopPropagation());
+      poiLabel.append(poiCheckbox, document.createTextNode('Show bandit HUD POI'));
+      settings.appendChild(poiLabel);
+      container.appendChild(settings);
+
+      const actions = document.createElement('div');
+      Object.assign(actions.style, { display: 'flex', flexWrap: 'wrap', gap: '8px' });
+      this.startButton = CombatMath.makeButton('Start / Restart A/A',
+        'Start or restart A/A training with the selected difficulty and bandit count', () => this.startSimulation());
+      this.stopButton = CombatMath.makeButton('Stop Simulation', 'Stop A/A training', () => this.stopSimulation());
+      actions.append(this.startButton, this.stopButton);
+      container.appendChild(actions);
+      this.updateOptions();
+    }
+
+    /** Refreshes status text and button states without rebuilding the controls. */
+    updateOptions() {
+      if (!this.statusElement?.isConnected) return;
+      let text = this.active
+        ? `${this.npcs.length} BANDIT(S) ACTIVE | DIFFICULTY ${this.npcs[0]?.difficulty ?? this.selectedDifficulty}/6 | ${this.kills} KILL(S)`
+        : `INACTIVE | ${this.kills} KILL(S) | ${this.hits} HIT(S)`;
+      if (this.active) text += ` | INCOMING: ${this.npcMissiles.length} | HITS TAKEN: ${this.hitsTaken}`;
+      const mp = this.combat.multiplayer;
+      if (mp?.enabled && mp.group) text += ` | MP SYNC ${mp.sharedHits} HIT(S)`;
+      this.statusElement.textContent = text;
+      if (this.startButton) this.startButton.disabled = !WeaponOverlayModule.isReady();
+      if (this.stopButton) this.stopButton.disabled = !this.active;
+    }
+  }
+
+  window.AACombatModule = AACombatModule;
+})();
+
+(function () {
+  'use strict';
+
+  const { turnVelocity, mul } = CombatMath;
+
+  const STORAGE_KEY = 'geofs-addon-combat-mp';
+  const CHAT_PREFIX = 'F7|';
+  const CHAT_LIMIT = 70;
+  const GROUP_LENGTH = 16;
+  const EVENT_FRESH_MS = 15000;
+  const MAX_NETWORK_MISSILES = 32;
+  const NETWORK_HIT_RADIUS_M = 35;
+
+  /**
+   * Transport that carries combat events as plain text in the public GeoFS chat.
+   * Everything transport specific lives here, so another channel can replace it
+   * later by providing the same `send` / `start` / `stop` surface.
+   */
+  class GeoFsChatTransport {
+    constructor(onChatMessage) {
+      this.onChatMessage = onChatMessage;
+      this.originalUpdate = null;
+      this.wrappedUpdate = null;
+    }
+
+    isAvailable() {
+      return typeof window.multiplayer?.setChatMessage === 'function';
+    }
+
+    /** Sends a text message; returns true on success. Throws a readable error otherwise. */
+    send(message) {
+      if (!this.isAvailable()) throw new Error('GEOFS CHAT SYNC API UNAVAILABLE');
+      if (message.length > CHAT_LIMIT) throw new Error('SYNC EVENT EXCEEDS GEOFS CHAT LIMIT');
+      window.multiplayer.setChatMessage(message);
+      return true;
+    }
+
+    getSelfId(payload) {
+      return String(window.multiplayer?.myId ?? window.multiplayer?.lastResponse?.myId ?? payload?.myId ?? '');
+    }
+
+    /**
+     * Wraps the multiplayer update callback once per multiplayer object. Other
+     * addon modules (CommunicationModule) wrap the same callback, so this never
+     * re-wraps just because someone else wrapped on top of it: two modules that
+     * each re-wrap when the other's wrapper is outermost would grow the call
+     * chain forever and break the original GeoFS update (no visible users).
+     */
+    ensureHook() {
+      const multiplayer = window.multiplayer;
+      if (!multiplayer || typeof multiplayer.updateCallback !== 'function') return false;
+      if (this.hookedMultiplayer === multiplayer) return true;
+      const transport = this;
+      const original = multiplayer.updateCallback;
+      this.hookedMultiplayer = multiplayer;
+      this.originalUpdate = original;
+      this.active = true;
+      this.wrappedUpdate = function (payload) {
+        if (transport.active) {
+          try {
+            const messages = Array.isArray(payload?.chatMessages) ? payload.chatMessages : [];
+            for (const message of messages) transport.onChatMessage(message, payload);
+          } catch (error) {
+            console.error('[MultiplayerModule] chat processing failed', error);
+          }
+        }
+        return original.apply(this, arguments);
+      };
+      multiplayer.updateCallback = this.wrappedUpdate;
+      return true;
+    }
+
+    stop() {
+      this.active = false;
+      const multiplayer = this.hookedMultiplayer;
+      if (multiplayer && multiplayer.updateCallback === this.wrappedUpdate && this.originalUpdate) {
+        multiplayer.updateCallback = this.originalUpdate;
+      }
+      this.hookedMultiplayer = null;
+    }
+  }
+  /**
+   * Multiplayer combat sync: compact `F7|<group>|<type>|...` chat events for
+   * missile launch (L), hit (H), evade (D), miss/expiry (X) and a test ping (T).
+   * Incoming missiles that target the local player are simulated and drawn here.
+   */
+  class MultiplayerModule {
+    constructor(combat, config = {}) {
+      this.combat = combat;
+      combat.multiplayer = this;
+      this.cfg = { ...config };
+      const saved = CombatMath.readStorage(STORAGE_KEY, {}) || {};
+      this.enabled = !!saved.enabled;
+      this.group = typeof saved.group === 'string' ? saved.group.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, GROUP_LENGTH) : '';
+      this.sharedHits = 0;
+      this.networkMissiles = [];
+      this.receivedNetworkEvents = new Set();
+      this.seenChatMessages = new Set();
+      this.transport = new GeoFsChatTransport((message, payload) => this.processChat(message, payload));
+      this.lastHookCheck = 0;
+      this.unsubscribers = [];
+    }
+
+    start() {
+      this.transport.ensureHook();
+      const overlay = this.combat.overlay;
+      if (!overlay) return;
+      this.unsubscribers.push(
+        overlay.registerLayer('multiplayer', 40, (ctx, f) => this.updateAndDrawNetworkMissiles(ctx, f)),
+        overlay.onAircraftChange(() => { this.networkMissiles = []; })
+      );
+    }
+
+    stop() {
+      this.transport.stop();
+      for (const unsubscribe of this.unsubscribers) unsubscribe();
+      this.unsubscribers = [];
+      this.networkMissiles = [];
+    }
+
+    saveSettings() {
+      CombatMath.writeStorage(STORAGE_KEY, { enabled: this.enabled, group: this.group });
+    }
+
+    rememberEvent(key) {
+      this.receivedNetworkEvents.add(key);
+      if (this.receivedNetworkEvents.size > 500) {
+        this.receivedNetworkEvents.delete(this.receivedNetworkEvents.values().next().value);
+      }
+    }
+
+    // ---- Protocol ----
+
+    groupFingerprint() {
+      let hash = 2166136261;
+      for (let i = 0; i < this.group.length; i++) {
+        hash ^= this.group.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+      }
+      return (hash >>> 0).toString(36);
+    }
+
+    encodeEvent(eventData) {
+      if (!Array.isArray(eventData)) return '';
+      const prefix = `${CHAT_PREFIX}${this.groupFingerprint()}|`;
+      if (eventData[1] === 'T') return `${prefix}T|${Date.now().toString(36)}`;
+      if (eventData[1] === 'L' && eventData[0] === 3) {
+        const [, , missileId, targetId, sentAt] = eventData;
+        if (typeof missileId !== 'string' || typeof targetId !== 'string') return '';
+        const sentAtToken = typeof sentAt === 'string' ? sentAt : Number(sentAt).toString(36);
+        if (!/^[0-9a-z]+$/i.test(sentAtToken)) return '';
+        return prefix + ['L', encodeURIComponent(missileId), encodeURIComponent(targetId), sentAtToken].join('|');
+      }
+      if ((eventData[1] === 'H' || eventData[1] === 'X' || eventData[1] === 'D') && eventData.length === 5) {
+        const [, type, missileId, targetId, sentAt] = eventData;
+        if (typeof missileId !== 'string' || typeof targetId !== 'string' || !Number.isFinite(sentAt)) return '';
+        return prefix + [type, encodeURIComponent(missileId), encodeURIComponent(targetId), sentAt.toString(36)].join('|');
+      }
+      return '';
+    }
+
+    parseEvent(value) {
+      const fields = value.split('|');
+      const type = fields[0];
+      if (type === 'T' && fields.length === 2) {
+        const sentAt = Number.parseInt(fields[1], 36);
+        return Number.isFinite(sentAt) ? [1, 'T', sentAt] : null;
+      }
+      if (type === 'L' && fields.length === 4) {
+        const sentAt = Number.parseInt(fields[3], 36);
+        if (!Number.isFinite(sentAt)) return null;
+        return [3, 'L', decodeURIComponent(fields[1]), decodeURIComponent(fields[2]), sentAt];
+      }
+      if ((type === 'H' || type === 'X' || type === 'D') && fields.length === 4) {
+        const sentAt = Number.parseInt(fields[3], 36);
+        if (!Number.isFinite(sentAt)) return null;
+        return [1, type, decodeURIComponent(fields[1]), decodeURIComponent(fields[2]), sentAt];
+      }
+      return null;
+    }
+
+    /** GeoFS may URL-encode chat text once or twice; decode up to two times. */
+    normalizeChatText(value) {
+      let text = String(value ?? '');
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const decoded = decodeURIComponent(text.replace(/\+/g, '%20'));
+          if (decoded === text) break;
+          text = decoded;
+        } catch (error) {
+          break;
+        }
+      }
+      return text;
+    }
+
+    /** Sends a sync event; resolves to false when sync is disabled or sending failed. */
+    async sendEvent(eventData) {
+      if (!this.enabled || this.group.length < GROUP_LENGTH) return false;
+      try {
+        const message = this.encodeEvent(eventData);
+        if (!message) return false;
+        return this.transport.send(message);
+      } catch (error) {
+        this.combat.notify(error.message || 'MULTIPLAYER EVENT COULD NOT BE SENT', 3000);
+        return false;
+      }
+    }
+
+    getUser(userId) {
+      const users = window.multiplayer?.visibleUsers;
+      if (!users || typeof users !== 'object') return null;
+      const id = String(userId);
+      for (const [key, user] of Object.entries(users)) {
+        if ([key, user?.id, user?.uid].some((value) => value != null && String(value) === id)) return user;
+      }
+      return null;
+    }
+
+    getUserLabel(userId) {
+      const user = this.getUser(userId);
+      const label = user?.callsign ?? user?.cs ?? user?.aircraftName ?? user?.username;
+      return label ? String(label).slice(0, 20) : `PLAYER ${String(userId).slice(0, 12)}`;
+    }
+
+    processChat(message, payload) {
+      if (!this.enabled || this.group.length < GROUP_LENGTH) return;
+      const senderId = String(message?.uid ?? '');
+      const selfId = this.transport.getSelfId(payload);
+      if (!senderId || (selfId && senderId === selfId)) return;
+
+      const chatText = this.normalizeChatText(message?.msg);
+      if (!chatText.startsWith(CHAT_PREFIX)) return;
+      const groupSeparator = chatText.indexOf('|', CHAT_PREFIX.length);
+      if (groupSeparator < 0) return;
+      if (chatText.slice(CHAT_PREFIX.length, groupSeparator) !== this.groupFingerprint()) return;
+      const messageKey = `${senderId}:${chatText}`;
+      if (this.seenChatMessages.has(messageKey)) return;
+      this.seenChatMessages.add(messageKey);
+      if (this.seenChatMessages.size > 500) {
+        this.seenChatMessages.delete(this.seenChatMessages.values().next().value);
+      }
+
+      try {
+        const data = this.parseEvent(chatText.slice(groupSeparator + 1));
+        if (!data) throw new Error('Malformed sync event');
+        this.processEvent(data, senderId, selfId);
+      } catch (error) {
+        this.combat.notify(`INVALID SYNC CHAT MESSAGE (${chatText.length} CHARS)`, 3000);
+      }
+    }
+
+    isFresh(sentAt) {
+      return Number.isFinite(sentAt) && Math.abs(Date.now() - sentAt) <= EVENT_FRESH_MS;
+    }
+
+    processEvent(data, senderId, selfId) {
+      if (!this.enabled || !Array.isArray(data)) return;
+      const type = data[1];
+
+      if (type === 'T') {
+        this.combat.notify('MULTIPLAYER SYNC TEST RECEIVED', 3000);
+        return;
+      }
+
+      const [, , missileId, targetId, sentAt] = data;
+      if (typeof missileId !== 'string' || !this.isFresh(sentAt)) return;
+      const key = `${senderId}:${missileId}`;
+
+      if (type === 'L') {
+        // A launch aimed at the local player: spawn a visible incoming missile.
+        if (data[0] !== 3 || !selfId || String(targetId) !== selfId) return;
+        if (this.receivedNetworkEvents.has(`L:${key}`)) return;
+        const coordinates = this.getUser(senderId)?.lastUpdate?.co;
+        const own = geofs.aircraft.instance?.llaLocation;
+        if (!Array.isArray(coordinates) || coordinates.length < 3 || !Array.isArray(own) || own.length < 3) return;
+        const [lat, lon, altitude] = coordinates.map(Number);
+        if (![lat, lon, altitude].every(Number.isFinite)) return;
+        const position = Cesium.Cartesian3.fromDegrees(lon, lat, altitude);
+        const targetPosition = Cesium.Cartesian3.fromDegrees(own[1], own[0], own[2]);
+        const direction = Cesium.Cartesian3.subtract(targetPosition, position, new Cesium.Cartesian3());
+        const distance = Cesium.Cartesian3.magnitude(direction);
+        if (!Number.isFinite(distance) || distance <= 0) return;
+        Cesium.Cartesian3.normalize(direction, direction);
+        Cesium.Cartesian3.multiplyByScalar(direction, 900, direction);
+        this.rememberEvent(`L:${key}`);
+        this.networkMissiles.push({
+          key, senderId, missileId, position,
+          velocity: [direction.x, direction.y, direction.z],
+          speed: 900,
+          turnRate: 1.2,
+          maxFlightTime: Math.min(240, Math.max(8, distance / 700 + 10)),
+          t0: performance.now(),
+          updatedAt: performance.now(),
+          trail: []
+        });
+        if (this.networkMissiles.length > MAX_NETWORK_MISSILES) this.networkMissiles.shift();
+        this.combat.notify(`MISSILE LAUNCHED BY ${this.getUserLabel(senderId)}`, 2500);
+        return;
+      }
+
+      if (type === 'H') {
+        if (String(targetId) !== selfId) return;
+        if (this.receivedNetworkEvents.has(`D:${key}`) || this.receivedNetworkEvents.has(`H:${key}`)) return;
+        this.rememberEvent(`H:${key}`);
+        this.networkMissiles = this.networkMissiles.filter((missile) => missile.key !== key);
+        this.sharedHits++;
+        const own = geofs.aircraft.instance?.llaLocation;
+        if (Array.isArray(own) && own.length >= 3) {
+          this.combat.overlay?.addImpact(Cesium.Cartesian3.fromDegrees(own[1], own[0], own[2]));
+        }
+        this.combat.notify(`MISSILE HIT FROM ${this.getUserLabel(senderId)}`, 3500);
+        return;
+      }
+
+      if (type === 'D') {
+        // The evading player reports its own id as the target of the original launch.
+        if (String(targetId) !== senderId) return;
+        const evadeKey = `D:${key}`;
+        if (this.receivedNetworkEvents.has(evadeKey)) return;
+        const projectile = this.combat.projectile;
+        const missile = projectile?.missiles.find((item) =>
+          item.networkId === missileId && String(item.targetId) === senderId);
+        if (!missile) return;
+        this.rememberEvent(evadeKey);
+        projectile.missiles = projectile.missiles.filter((item) => item !== missile);
+        this.combat.overlay?.addImpact(CombatMath.worldPosition(missile.enuMat, missile.position));
+        this.combat.notify(`${this.getUserLabel(senderId)} EVADED MISSILE WITH FLARES`, 3000);
+        return;
+      }
+
+      if (type === 'X') {
+        if (String(targetId) !== selfId) return;
+        this.networkMissiles = this.networkMissiles.filter((missile) => missile.key !== key);
+      }
+    }
+
+    /**
+     * Removes the incoming network missiles (flares worked) and reports them as
+     * evaded. Returns { count, promise } where the promise resolves to the number
+     * of evade messages that were sent.
+     */
+    evadeIncomingMissiles() {
+      const now = performance.now();
+      const incoming = this.networkMissiles.filter((missile) => now - missile.t0 < missile.maxFlightTime * 1000);
+      if (!incoming.length) return null;
+      const selfId = this.transport.getSelfId();
+      const sends = incoming.map((missile) => {
+        this.rememberEvent(`D:${missile.key}`);
+        if (!this.enabled || !selfId) return Promise.resolve(false);
+        return this.sendEvent([1, 'D', missile.missileId, selfId, Date.now()]);
+      });
+      this.networkMissiles = this.networkMissiles.filter((missile) => !incoming.includes(missile));
+      return {
+        count: incoming.length,
+        promise: Promise.all(sends).then((results) => results.filter(Boolean).length)
+      };
+    }
+
+    // ---- Incoming missile simulation ----
+
+    updateAndDrawNetworkMissiles(ctx, f) {
+      if (f.nowMs - this.lastHookCheck > 1000) {
+        this.lastHookCheck = f.nowMs;
+        this.transport.ensureHook();
+        this.mountOptions();
+      }
+      if (!this.enabled || !this.networkMissiles.length) return;
+      const own = geofs.aircraft.instance.llaLocation;
+      if (!Array.isArray(own) || own.length < 3) return;
+      const now = f.nowMs;
+      const ownWorld = Cesium.Cartesian3.fromDegrees(own[1], own[0], own[2]);
+      const live = [];
+
+      for (const missile of this.networkMissiles) {
+        const age = (now - missile.t0) / 1000;
+        if (age > missile.maxFlightTime + 5) continue;
+        const dt = Math.min(0.25, Math.max(0, (now - missile.updatedAt) / 1000));
+        const previousPosition = missile.position;
+        const delta = Cesium.Cartesian3.subtract(ownWorld, previousPosition, new Cesium.Cartesian3());
+        const distance = Cesium.Cartesian3.magnitude(delta);
+        let nextPosition = previousPosition;
+        if (distance > 0 && dt > 0) {
+          missile.velocity = turnVelocity(missile.velocity, [delta.x, delta.y, delta.z], missile.turnRate * dt);
+          const speed = Math.hypot(...missile.velocity) || 1;
+          missile.velocity = mul(missile.velocity, missile.speed / speed);
+          nextPosition = Cesium.Cartesian3.add(previousPosition,
+            Cesium.Cartesian3.multiplyByScalar(new Cesium.Cartesian3(...missile.velocity), dt, new Cesium.Cartesian3()),
+            new Cesium.Cartesian3());
+        }
+        if (age > 0.15 && dt > 0) {
+          const segment = Cesium.Cartesian3.subtract(nextPosition, previousPosition, new Cesium.Cartesian3());
+          const segmentSquared = Cesium.Cartesian3.dot(segment, segment);
+          const toTarget = Cesium.Cartesian3.subtract(ownWorld, previousPosition, new Cesium.Cartesian3());
+          const closestFraction = segmentSquared > 0
+            ? Math.max(0, Math.min(1, Cesium.Cartesian3.dot(toTarget, segment) / segmentSquared))
+            : 0;
+          const closestPoint = Cesium.Cartesian3.add(previousPosition,
+            Cesium.Cartesian3.multiplyByScalar(segment, closestFraction, new Cesium.Cartesian3()),
+            new Cesium.Cartesian3());
+          if (Cesium.Cartesian3.distance(closestPoint, ownWorld) <= NETWORK_HIT_RADIUS_M) {
+            const hitKey = `H:${missile.key}`;
+            if (!this.receivedNetworkEvents.has(hitKey)) {
+              this.rememberEvent(hitKey);
+              this.sharedHits++;
+              f.overlay.addImpact(Cesium.Cartesian3.clone(ownWorld), now);
+              this.combat.notify(`MISSILE HIT FROM ${this.getUserLabel(missile.senderId)}`, 3500);
+            }
+            continue;
+          }
+        }
+        missile.position = nextPosition;
+        missile.updatedAt = now;
+        missile.trail.push(Cesium.Cartesian3.clone(nextPosition));
+        if (missile.trail.length > 18) missile.trail.shift();
+        live.push(missile);
+
+        ctx.save();
+        ctx.strokeStyle = '#ff4545';
+        ctx.fillStyle = '#ff4545';
+        ctx.shadowColor = '#ff2020';
+        ctx.shadowBlur = 9;
+        ctx.lineWidth = 2.5;
+        for (let i = 1; i < missile.trail.length; i++) {
+          const from = f.overlay.worldToScreen(f.scene, missile.trail[i - 1], true);
+          const to = f.overlay.worldToScreen(f.scene, missile.trail[i], true);
+          if (!from || !to) continue;
+          ctx.globalAlpha = i / missile.trail.length;
+          ctx.beginPath();
+          ctx.moveTo(from.x, from.y);
+          ctx.lineTo(to.x, to.y);
+          ctx.stroke();
+        }
+        const point = f.overlay.worldToScreen(f.scene, missile.position, true);
+        if (point) {
+          ctx.globalAlpha = 1;
+          ctx.beginPath();
+          ctx.arc(point.x, point.y, 4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+      this.networkMissiles = live;
+    }
+
+    // ---- Options -> General UI ----
+
+    mountOptions() {
+      const mounted = CombatMath.ensureGeneralFieldset('addon-combat-mp', 'Combat Multiplayer');
+      if (!mounted || mounted.controls.dataset.built) return;
+      mounted.controls.dataset.built = '1';
+      this.buildOptions(mounted.controls);
+    }
+
+    buildOptions(container) {
+      const label = document.createElement('label');
+      Object.assign(label.style, { display: 'flex', alignItems: 'center', gap: '8px', margin: '10px 0 6px' });
+      const enabledInput = document.createElement('input');
+      enabledInput.type = 'checkbox';
+      enabledInput.checked = this.enabled;
+      enabledInput.setAttribute('aria-label', 'Enable multiplayer missile sync');
+      enabledInput.addEventListener('change', () => {
+        this.enabled = enabledInput.checked;
+        this.saveSettings();
+        if (!this.enabled) this.networkMissiles = [];
+        this.combat.notify(`MULTIPLAYER MISSILE SYNC ${this.enabled ? 'ON' : 'OFF'}`, 2000);
+      });
+      label.append(enabledInput, document.createTextNode('Enable multiplayer missile sync'));
+
+      const groupLabel = document.createElement('label');
+      Object.assign(groupLabel.style, { display: 'flex', alignItems: 'center', gap: '8px' });
+      groupLabel.appendChild(document.createTextNode('Sync group code'));
+      const groupInput = document.createElement('input');
+      groupInput.type = 'text';
+      groupInput.value = this.group;
+      groupInput.maxLength = GROUP_LENGTH;
+      groupInput.autocomplete = 'off';
+      groupInput.spellcheck = false;
+      groupInput.placeholder = 'share the same 16-character code';
+      groupInput.setAttribute('aria-label', 'Multiplayer missile sync group code');
+      groupInput.addEventListener('change', () => {
+        const value = groupInput.value.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, GROUP_LENGTH);
+        if (groupInput.value !== value) groupInput.value = value;
+        this.group = value;
+        this.saveSettings();
+      });
+      groupLabel.appendChild(groupInput);
+
+      const generateButton = CombatMath.makeButton('Generate Group Code', 'Generate a random sync group code', () => {
+        this.group = crypto.randomUUID().replace(/-/g, '').slice(0, GROUP_LENGTH);
+        groupInput.value = this.group;
+        this.saveSettings();
+      });
+      const testButton = CombatMath.makeButton('Send Sync Test', 'Send a multiplayer sync test message', async () => {
+        if (!this.enabled) {
+          this.combat.notify('ENABLE MULTIPLAYER SYNC FIRST', 2500);
+          return;
+        }
+        if (this.group.length < GROUP_LENGTH) {
+          this.combat.notify('SET A 16-CHARACTER SYNC GROUP CODE', 2500);
+          return;
+        }
+        if (await this.sendEvent([1, 'T', Date.now()])) {
+          this.combat.notify('SYNC TEST SENT IN PUBLIC GEOFS CHAT', 3000);
+        }
+      });
+      const buttons = document.createElement('div');
+      Object.assign(buttons.style, { display: 'flex', flexWrap: 'wrap', gap: '8px', margin: '8px 0' });
+      buttons.append(generateButton, testButton);
+
+      const note = document.createElement('p');
+      note.style.margin = '6px 0';
+      note.textContent = 'Both players need the same 16-character group code and updated addon. Lock a radar contact with Enter before launching a missile; Backspace releases flares and reports an evade for synced incoming missiles. Sync messages are plain text in public GeoFS chat; anyone can read them. The group fingerprint only filters messages.';
+      container.append(label, groupLabel, buttons, note);
+    }
+  }
+
+  window.GeoFsChatTransport = GeoFsChatTransport;
+  window.MultiplayerModule = MultiplayerModule;
+})();
 
 
   class ChecklistModule {
@@ -3193,6 +6410,16 @@ window.DataCartridgeModule = DataCartridgeModule;
       };
     }
 
+    // Returns the contacts of the A/A combat simulation (bandits), if it is running.
+    getCombatContacts() {
+      try {
+        const addon = typeof BasePlugin !== 'undefined' ? BasePlugin.getActiveAddon() : null;
+        return addon?.combat?.aaCombat?.getNpcContacts?.() ?? [];
+      } catch (error) {
+        return [];
+      }
+    }
+
     // Returns visible multiplayer aircraft in heading-relative coordinates.
     getTrafficContacts(ownship) {
       if (!ownship) return [];
@@ -3220,6 +6447,31 @@ window.DataCartridgeModule = DataCartridgeModule;
           trackDeg: this.normalizeHeadingDeg(co[3]),
           lastSeenMs: nowMs
         };
+      }
+
+      // Simulated A/A bandits are tracked like multiplayer aircraft so NAV/RDR can show and lock them.
+      const npcContacts = this.getCombatContacts();
+      const npcUids = new Set();
+      for (const npc of npcContacts) {
+        const uid = String(npc.id);
+        npcUids.add(uid);
+        if (this.navModule && !this.navModule.isTrafficContactVisible(npc.callsign)) continue;
+        this.trafficContactsByUid[uid] = {
+          uid,
+          isNpc: true,
+          aircraftName: 'BANDIT',
+          callsign: String(npc.callsign ?? 'BANDIT'),
+          lat: npc.lat,
+          lon: npc.lon,
+          alt: npc.alt,
+          speedKts: Number.isFinite(npc.speedKts) ? npc.speedKts : null,
+          headingDeg: this.normalizeHeadingDeg(npc.headingDeg),
+          trackDeg: this.normalizeHeadingDeg(npc.headingDeg),
+          lastSeenMs: nowMs
+        };
+      }
+      for (const uid of Object.keys(this.trafficContactsByUid)) {
+        if (this.trafficContactsByUid[uid]?.isNpc && !npcUids.has(uid)) delete this.trafficContactsByUid[uid];
       }
 
       const result = [];
@@ -3251,6 +6503,7 @@ window.DataCartridgeModule = DataCartridgeModule;
           alt: cached.alt,
           altFeet: Number.isFinite(Number(cached.alt)) ? Math.round(Number(cached.alt) * 3.28084) : null,
           speedKts: cached.speedKts,
+          isNpc: !!cached.isNpc,
           headingDeg: cached.headingDeg,
           trackDeg: cached.trackDeg,
           ...frameNm
@@ -7505,7 +10758,7 @@ class TargetingPodModule {
 
 window.TargetingPodModule = TargetingPodModule;
 
-﻿class F18HudModule {
+class F18HudModule {
   static HUD_PHYSICAL_HEIGHT_M = 0.30;
   static HUD_PARALLAX_GAIN = 1.65;
   static CAMERA_TO_HUD_DISTANCE_M = 0.92;
@@ -7571,7 +10824,7 @@ window.TargetingPodModule = TargetingPodModule;
   }
 
   getWpnModeFromOptions() {
-    return this.getAddon()?.weapons?.getModeFromOptions?.() ?? 'NAV';
+    return this.getOption('WPN', 'MODE', 'NAV');
   }
 
   getWpnModeLoadout(mode) {
@@ -8710,6 +11963,48 @@ window.TargetingPodModule = TargetingPodModule;
   ctx.restore();
   }
 
+  // Weapon effectiveness bracket; drawn like the one on the RDR page.
+  static drawWeaponEffectivenessBracket(ctx, weaponModule, profile, lockedDistanceNm, w, h) {
+  const markerFractions = weaponModule.getEffectivenessMarkerFractions(profile);
+  const bracketTop = h * 0.260;
+  const bracketHeight = h * 0.320;
+  const bracketBottom = bracketTop + bracketHeight;
+  const bracketX = w * 0.715;
+  const tickLen = w * 0.018;
+
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.strokeStyle = this.DEFAULT_COLOR;
+  ctx.fillStyle = this.DEFAULT_COLOR;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(bracketX, bracketTop);
+  ctx.lineTo(bracketX, bracketBottom);
+  ctx.stroke();
+
+  const markerYs = [
+    bracketTop + markerFractions.engagementMax * bracketHeight,
+    bracketTop + markerFractions.effectiveMax * bracketHeight,
+    bracketTop + markerFractions.effectiveMin * bracketHeight,
+    bracketTop + markerFractions.engagementMin * bracketHeight
+  ];
+  for (const y of markerYs) {
+    ctx.beginPath();
+    ctx.moveTo(bracketX, y);
+    ctx.lineTo(bracketX - tickLen, y);
+    ctx.stroke();
+  }
+
+  if (Number.isFinite(lockedDistanceNm)) {
+    const lockedFraction = weaponModule.getEffectivenessDistanceFraction(profile, lockedDistanceNm);
+    ctx.font = `bold ${Math.round(h * 0.046)}px monospace`;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('>', bracketX, bracketTop + lockedFraction * bracketHeight);
+  }
+  ctx.restore();
+  }
+
   static drawTopHeadingScale(ctx, renderer, hdg, navUnit, helperModule, w, h) {
   const bandX = w * 0.275;
   const bandY = h * 0.078;
@@ -9126,8 +12421,14 @@ window.TargetingPodModule = TargetingPodModule;
 
   // --- Readouts links/rechts rond de boxes ---
   if (hudLevel !== 'MIN') {
-      F18HudModule.drawLeftReadouts(o, mach, currentG, aoa, this.maxG, autopilot, w, h);
+    F18HudModule.drawLeftReadouts(o, mach, currentG, aoa, this.maxG, autopilot, w, h);
     F18HudModule.drawRightReadouts(o, vsi, radioAlt, trimDisplay, navUnit, navModule, w, h, wpnHudStatus);
+    const weapons = this.getAddon()?.weapons;
+    const effectiveness = wpnModeLoadout ? weapons?.getSelectedWeaponEffectiveness?.(wpnMode, wpnModeLoadout) : null;
+    if (wpnMode === 'A/A' && effectiveness) {
+      const locked = this.getAddon()?.combat?.targets?.getLockedTarget?.();
+      F18HudModule.drawWeaponEffectivenessBracket(o, weapons, effectiveness, locked?.rangeNm, w, h);
+    }
   }
 
   // --- Attitude symbology shares one camera/combiner projection snapshot. ---
@@ -10284,8 +13585,7 @@ class MfdDisplay {
     MFD_TOP_BUTTON_VISUAL_SCALE: 2 / 3,
     MFD_CLICK_HALF_WIDTH: 0.36,
     MFD_CLICK_HALF_HEIGHT: 0.36,
-    MFD_PART_MODEL_URL: 'https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/models/glassPanel.gltf',
-    MFD_TRANSPARENT_PART_MODEL_URL: 'https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/models/glassPanel-transparent.gltf'
+    MFD_PART_MODEL_URL: 'https://raw.githubusercontent.com/ArjanKw/GeoFS-BlueAngels/refs/heads/main/Scripts/addon/models/glassPanel.gltf'
   };
 
   constructor(mfdModule, config = {}) {
@@ -10509,15 +13809,15 @@ class MfdDisplay {
           name: 'generic',
           textures: { diffuse: '' }
         },
-        translucent: true,
-        opaque: false
+        translucent: false,
+        opaque: true
       },
-      safeTransparency: true,
+      safeTransparency: false,
       renderer: {
         name: rendererName,
         width: 512,
         height: 512,
-        enableTransparency: true,
+        enableTransparency: false,
         images: { }
       },
       animations: [{
@@ -10546,7 +13846,7 @@ class MfdDisplay {
     return this.ensureIncludeDefinition(
       this.getButtonIncludeKey(partName),
       this.names.MFD_TOP_BUTTON_RENDERER_NAME,
-      `${this.cfg.MFD_TRANSPARENT_PART_MODEL_URL}?v=mfd-button-${encodeURIComponent(partName)}`
+      `${this.cfg.MFD_PART_MODEL_URL}?v=mfd-button-${encodeURIComponent(partName)}`
     );
   }
 
@@ -11666,6 +14966,44 @@ class MfdModule {
       return this;
     }
 
+    /**
+     * Attach optional cross-aircraft capabilities without changing core modules.
+     * Modules are enabled only when explicitly requested by a plugin constructor.
+     */
+    initializeOptionalModules(addon, options = {}) {
+      const weapons = addon?.weapons;
+      const cfg = (value) => (value === true ? {} : value);
+      const wantsCombat = !!(options.weaponHud || options.projectile || options.aaCombat || options.multiplayer);
+      if (!weapons || !window.CombatContext || !(wantsCombat || options.keybind)) {
+        addon.optionalModules = [];
+        return [];
+      }
+
+      // Shared context: every optional module plugs into it, none draws on its own.
+      const combat = new window.CombatContext();
+      combat.weapons = weapons;
+      const modules = [];
+      const add = (name, Module, ...args) => {
+        if (!Module) return null;
+        const instance = new Module(...args);
+        modules.push(instance);
+        addon[name] = instance;
+        return instance;
+      };
+
+      add('weaponOverlay', window.WeaponOverlayModule, combat, cfg(options.overlay) ?? {});
+      add('combatTargets', window.TargetModule, combat, addon);
+      add('weaponAudio', window.WeaponAudioModule, combat, weapons, cfg(options.audio) ?? {});
+      if (options.keybind) add('keybinds', window.KeybindModule, combat, weapons, cfg(options.keybind));
+      if (options.weaponHud) add('weaponHud', window.WeaponHudModule, combat, weapons, cfg(options.weaponHud));
+      if (options.projectile) add('projectile', window.ProjectileModule, combat, weapons, cfg(options.projectile));
+      if (options.aaCombat) add('aaCombat', window.AACombatModule, combat, cfg(options.aaCombat));
+      if (options.multiplayer) add('multiplayer', window.MultiplayerModule, combat, cfg(options.multiplayer));
+
+      addon.combat = combat;
+      addon.optionalModules = modules;
+      return modules;
+    }
     startManagedModules() {
       for (const module of this.managedModules) {
         if (typeof module.start === 'function') {
@@ -11896,7 +15234,11 @@ class MfdModule {
       addon.targetingPod.registerMfdPages(addon.mfd);
 
       this.setManagedModules([
-        addon.controls
+        addon.controls,
+        ...this.initializeOptionalModules(addon, config.optionalModules ?? {
+          keybind: true, weaponHud: { enabled: true }, projectile: true,
+          aaCombat: { enabled: true }, multiplayer: { enabled: true }
+        })
       ]);
     }
 

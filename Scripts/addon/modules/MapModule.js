@@ -184,6 +184,16 @@
       };
     }
 
+    // Returns the contacts of the A/A combat simulation (bandits), if it is running.
+    getCombatContacts() {
+      try {
+        const addon = typeof BasePlugin !== 'undefined' ? BasePlugin.getActiveAddon() : null;
+        return addon?.combat?.aaCombat?.getNpcContacts?.() ?? [];
+      } catch (error) {
+        return [];
+      }
+    }
+
     // Returns visible multiplayer aircraft in heading-relative coordinates.
     getTrafficContacts(ownship) {
       if (!ownship) return [];
@@ -211,6 +221,31 @@
           trackDeg: this.normalizeHeadingDeg(co[3]),
           lastSeenMs: nowMs
         };
+      }
+
+      // Simulated A/A bandits are tracked like multiplayer aircraft so NAV/RDR can show and lock them.
+      const npcContacts = this.getCombatContacts();
+      const npcUids = new Set();
+      for (const npc of npcContacts) {
+        const uid = String(npc.id);
+        npcUids.add(uid);
+        if (this.navModule && !this.navModule.isTrafficContactVisible(npc.callsign)) continue;
+        this.trafficContactsByUid[uid] = {
+          uid,
+          isNpc: true,
+          aircraftName: 'BANDIT',
+          callsign: String(npc.callsign ?? 'BANDIT'),
+          lat: npc.lat,
+          lon: npc.lon,
+          alt: npc.alt,
+          speedKts: Number.isFinite(npc.speedKts) ? npc.speedKts : null,
+          headingDeg: this.normalizeHeadingDeg(npc.headingDeg),
+          trackDeg: this.normalizeHeadingDeg(npc.headingDeg),
+          lastSeenMs: nowMs
+        };
+      }
+      for (const uid of Object.keys(this.trafficContactsByUid)) {
+        if (this.trafficContactsByUid[uid]?.isNpc && !npcUids.has(uid)) delete this.trafficContactsByUid[uid];
       }
 
       const result = [];
@@ -242,6 +277,7 @@
           alt: cached.alt,
           altFeet: Number.isFinite(Number(cached.alt)) ? Math.round(Number(cached.alt) * 3.28084) : null,
           speedKts: cached.speedKts,
+          isNpc: !!cached.isNpc,
           headingDeg: cached.headingDeg,
           trackDeg: cached.trackDeg,
           ...frameNm

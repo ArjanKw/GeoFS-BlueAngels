@@ -1,4 +1,4 @@
-﻿class F18HudModule {
+class F18HudModule {
   static HUD_PHYSICAL_HEIGHT_M = 0.30;
   static HUD_PARALLAX_GAIN = 1.65;
   static CAMERA_TO_HUD_DISTANCE_M = 0.92;
@@ -64,7 +64,7 @@
   }
 
   getWpnModeFromOptions() {
-    return this.getAddon()?.weapons?.getModeFromOptions?.() ?? 'NAV';
+    return this.getOption('WPN', 'MODE', 'NAV');
   }
 
   getWpnModeLoadout(mode) {
@@ -1203,6 +1203,48 @@
   ctx.restore();
   }
 
+  // Weapon effectiveness bracket; drawn like the one on the RDR page.
+  static drawWeaponEffectivenessBracket(ctx, weaponModule, profile, lockedDistanceNm, w, h) {
+  const markerFractions = weaponModule.getEffectivenessMarkerFractions(profile);
+  const bracketTop = h * 0.260;
+  const bracketHeight = h * 0.320;
+  const bracketBottom = bracketTop + bracketHeight;
+  const bracketX = w * 0.715;
+  const tickLen = w * 0.018;
+
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.strokeStyle = this.DEFAULT_COLOR;
+  ctx.fillStyle = this.DEFAULT_COLOR;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(bracketX, bracketTop);
+  ctx.lineTo(bracketX, bracketBottom);
+  ctx.stroke();
+
+  const markerYs = [
+    bracketTop + markerFractions.engagementMax * bracketHeight,
+    bracketTop + markerFractions.effectiveMax * bracketHeight,
+    bracketTop + markerFractions.effectiveMin * bracketHeight,
+    bracketTop + markerFractions.engagementMin * bracketHeight
+  ];
+  for (const y of markerYs) {
+    ctx.beginPath();
+    ctx.moveTo(bracketX, y);
+    ctx.lineTo(bracketX - tickLen, y);
+    ctx.stroke();
+  }
+
+  if (Number.isFinite(lockedDistanceNm)) {
+    const lockedFraction = weaponModule.getEffectivenessDistanceFraction(profile, lockedDistanceNm);
+    ctx.font = `bold ${Math.round(h * 0.046)}px monospace`;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('>', bracketX, bracketTop + lockedFraction * bracketHeight);
+  }
+  ctx.restore();
+  }
+
   static drawTopHeadingScale(ctx, renderer, hdg, navUnit, helperModule, w, h) {
   const bandX = w * 0.275;
   const bandY = h * 0.078;
@@ -1619,8 +1661,14 @@
 
   // --- Readouts links/rechts rond de boxes ---
   if (hudLevel !== 'MIN') {
-      F18HudModule.drawLeftReadouts(o, mach, currentG, aoa, this.maxG, autopilot, w, h);
+    F18HudModule.drawLeftReadouts(o, mach, currentG, aoa, this.maxG, autopilot, w, h);
     F18HudModule.drawRightReadouts(o, vsi, radioAlt, trimDisplay, navUnit, navModule, w, h, wpnHudStatus);
+    const weapons = this.getAddon()?.weapons;
+    const effectiveness = wpnModeLoadout ? weapons?.getSelectedWeaponEffectiveness?.(wpnMode, wpnModeLoadout) : null;
+    if (wpnMode === 'A/A' && effectiveness) {
+      const locked = this.getAddon()?.combat?.targets?.getLockedTarget?.();
+      F18HudModule.drawWeaponEffectivenessBracket(o, weapons, effectiveness, locked?.rangeNm, w, h);
+    }
   }
 
   // --- Attitude symbology shares one camera/combiner projection snapshot. ---

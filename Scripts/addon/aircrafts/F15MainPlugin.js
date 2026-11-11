@@ -116,7 +116,11 @@
       addon.targetingPod.registerMfdPages(addon.mfd);
 
       this.setManagedModules([
-        addon.controls
+        addon.controls,
+        ...this.initializeOptionalModules(addon, config.optionalModules ?? {
+          keybind: true, weaponHud: { enabled: true }, projectile: true,
+          aaCombat: { enabled: true }, multiplayer: { enabled: true }
+        })
       ]);
     }
 

@@ -102,7 +102,7 @@
       window.T38Addon.flight.registerMfdPages(window.T38Addon.mfd);
       window.T38Addon.targetingPod.registerMfdPages(window.T38Addon.mfd);
 
-      this.setManagedModules([window.T38Addon.controls]);
+      this.setManagedModules([window.T38Addon.controls, ...this.initializeOptionalModules(window.T38Addon, config.optionalModules)]);
     }
 
     isAircraftActive() {

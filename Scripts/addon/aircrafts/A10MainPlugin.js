@@ -117,7 +117,10 @@
       window.A10Addon.flight.registerMfdPages(window.A10Addon.mfd);
       window.A10Addon.targetingPod.registerMfdPages(window.A10Addon.mfd);
 
-      this.setManagedModules([window.A10Addon.controls]);
+      this.setManagedModules([window.A10Addon.controls, ...this.initializeOptionalModules(window.A10Addon, config.optionalModules ?? {
+        keybind: true, weaponHud: { enabled: true }, projectile: true,
+        aaCombat: { enabled: true }, multiplayer: { enabled: true }
+      })]);
     }
 
     isAircraftActive() {

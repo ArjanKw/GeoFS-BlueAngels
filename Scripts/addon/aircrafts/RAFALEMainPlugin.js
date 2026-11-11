@@ -116,7 +116,10 @@
       window.RAFALEAddon.flight.registerMfdPages(window.RAFALEAddon.mfd);
       window.RAFALEAddon.targetingPod.registerMfdPages(window.RAFALEAddon.mfd);
 
-      this.setManagedModules([window.RAFALEAddon.controls]);
+      this.setManagedModules([window.RAFALEAddon.controls, ...this.initializeOptionalModules(window.RAFALEAddon, config.optionalModules ?? {
+        keybind: true, weaponHud: { enabled: true }, projectile: true,
+        aaCombat: { enabled: true }, multiplayer: { enabled: true }
+      })]);
     }
 
     isAircraftActive() {

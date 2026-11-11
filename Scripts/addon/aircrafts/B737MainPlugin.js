@@ -116,7 +116,7 @@
       window.B737Addon.flight.registerMfdPages(window.B737Addon.mfd);
       window.B737Addon.targetingPod.registerMfdPages(window.B737Addon.mfd);
 
-      this.setManagedModules([window.B737Addon.controls]);
+      this.setManagedModules([window.B737Addon.controls, ...this.initializeOptionalModules(window.B737Addon, config.optionalModules)]);
     }
 
     isAircraftActive() {

@@ -16,9 +16,9 @@ class WeaponModule {
 
         this.FIRE_BLINK_INTERVAL_MS = 500;
         this.FIRE_BLINK_PHASES = 4;
-        this.GUN_FIRE_RATE_RPS = 66;
+        this.GUN_FIRE_RATE_RPS = 100;
         this.GUN_ROUNDS_PER_BURST = 100;
-        this.GUN_FIRE_TICK_MS = Math.max(1, Math.round(1000 / this.GUN_FIRE_RATE_RPS));
+        this.GUN_FIRE_TICK_MS = 16;
         this.REARM_DURATION_MS = 60_000;
 
         this.selectedWeaponByMode = {};
@@ -40,12 +40,17 @@ class WeaponModule {
         this.gunFireState = {
             timerId: null,
             mode: null,
-            roundsRemainingInBurst: 0
+            roundsRemainingInBurst: 0,
+            triggerHeld: false,
+            firing: false,
+            lastTickAt: 0,
+            accumulator: 0
         };
         this.fireFlash = {
             startTime: 0,
             label: 'FIRE'
         };
+        this.listeners = new Map();
 
         this.loadStateFromStorage();
     }
@@ -55,76 +60,94 @@ class WeaponModule {
         {
             "name": "AIM-9X",
             "engagement_window": { "min": 0.2, "max": 18.9 },
-            "effective_range": { "min": 0.5, "max": 8.1 },
-            "max_speed": 2.5
+            "effective_range": { "min": 0.5, "max": 8.1 }
         },
         {
             "name": "AIM-120C",
             "engagement_window": { "min": 1.1, "max": 48.6 },
-            "effective_range": { "min": 10.8, "max": 27.0 },
-            "max_speed": 4.0
+            "effective_range": { "min": 10.8, "max": 27.0 }
         },
         {
             "name": "AIM-120D",
             "engagement_window": { "min": 1.1, "max": 86.4 },
-            "effective_range": { "min": 16.2, "max": 43.2 },
-            "max_speed": 4.0
+            "effective_range": { "min": 16.2, "max": 43.2 }
         },
         {
             "name": "AIM-7M",
             "engagement_window": { "min": 1.1, "max": 37.8 },
-            "effective_range": { "min": 8.1, "max": 21.6 },
-            "max_speed": 4.0
+            "effective_range": { "min": 8.1, "max": 21.6 }
         },
         {
             "name": "R-73",
             "engagement_window": { "min": 0.2, "max": 21.6 },
-            "effective_range": { "min": 0.5, "max": 8.1 },
-            "max_speed": 2.5
+            "effective_range": { "min": 0.5, "max": 8.1 }
         },
         {
             "name": "R-27R",
             "engagement_window": { "min": 1.1, "max": 40.5 },
-            "effective_range": { "min": 10.8, "max": 24.3 },
-            "max_speed": 4.5
+            "effective_range": { "min": 10.8, "max": 24.3 }
         },
         {
             "name": "R-27ER",
             "engagement_window": { "min": 1.1, "max": 70.2 },
-            "effective_range": { "min": 16.2, "max": 37.8 },
-            "max_speed": 5.0
+            "effective_range": { "min": 16.2, "max": 37.8 }
         },
         {
             "name": "R-27T",
             "engagement_window": { "min": 0.5, "max": 21.6 },
-            "effective_range": { "min": 5.4, "max": 16.2 },
-            "max_speed": 4.0
+            "effective_range": { "min": 5.4, "max": 16.2 }
         },
         {
             "name": "R-27ET",
             "engagement_window": { "min": 0.5, "max": 64.8 },
-            "effective_range": { "min": 10.8, "max": 32.4 },
-            "max_speed": 4.0
+            "effective_range": { "min": 10.8, "max": 32.4 }
         },
         {
             "name": "R-77",
             "engagement_window": { "min": 1.1, "max": 43.2 },
-            "effective_range": { "min": 10.8, "max": 27.0 },
-            "max_speed": 4.0
+            "effective_range": { "min": 10.8, "max": 27.0 }
         },
         {
             "name": "R-77-1",
             "engagement_window": { "min": 1.1, "max": 59.4 },
-            "effective_range": { "min": 16.2, "max": 37.8 },
-            "max_speed": 4.5
+            "effective_range": { "min": 16.2, "max": 37.8 }
         },
         {
             "name": "R-77M",
             "engagement_window": { "min": 1.6, "max": 102.6 },
-            "effective_range": { "min": 21.6, "max": 54.0 },
-            "max_speed": 5.0
+            "effective_range": { "min": 21.6, "max": 54.0 }
         }
     ];
+
+    // Shared projectile characteristics taken from the former EEGS script.
+    // Aircraft loadouts select a weapon name; they do not redefine its physics.
+    static projectileMetadataByType = {
+        'AIM-9X': { speed: 850, turnRate: 1.2, maxFlightTime: 30 },
+        'AIM-120C': { speed: 900, turnRate: 1.2, maxFlightTime: 45 },
+        'AIM-120D': { speed: 900, turnRate: 1.2, maxFlightTime: 60 },
+        'AIM-7M': { speed: 850, turnRate: 1.0, maxFlightTime: 45 },
+        'R-73': { speed: 850, turnRate: 1.2, maxFlightTime: 30 },
+        'R-27R': { speed: 900, turnRate: 1.1, maxFlightTime: 45 },
+        'R-27ER': { speed: 950, turnRate: 1.1, maxFlightTime: 55 },
+        'R-27T': { speed: 850, turnRate: 1.1, maxFlightTime: 35 },
+        'R-27ET': { speed: 900, turnRate: 1.1, maxFlightTime: 50 },
+        'R-77': { speed: 900, turnRate: 1.2, maxFlightTime: 45 },
+        'R-77-1': { speed: 950, turnRate: 1.2, maxFlightTime: 50 },
+        'R-77M': { speed: 1000, turnRate: 1.3, maxFlightTime: 60 }
+    };
+
+    // Gun and missile launch constants taken from the former EEGS script.
+    static gunMetadata = {
+        muzzleVelocity: 1050,
+        drag: 0.4,
+        gravity: 9.81,
+        tracerEvery: 5,
+        tracerMinDist: 25,
+        tracerColor: '#eb9800',
+        impactColor: '#707070'
+    };
+
+    static defaultMissileMetadata = { speed: 900, turnRate: 1.2, maxFlightTime: 45, launchSpeed: 850 };
 
     registerMfdPages(mfdModule) {
         mfdModule.registerPage({
@@ -150,6 +173,7 @@ class WeaponModule {
             stateIndex: 0,
             show: () => HelperModule.isAircraftParkedAndCold()
             }
+
         ],
         rightButtons: [
             { key: 'MODE', label: 'MODE', states: ['NAV', 'A/A', 'A/G', 'JETTISON'], stateIndex: 0 },
@@ -467,6 +491,10 @@ class WeaponModule {
 
     startRearm(config) {
         if (this.rearmState.active) return false;
+        if (!HelperModule.isAircraftParkedAndCold()
+            || OptionModule.getOption('WPN', 'MASTER', 'OFF') !== 'OFF') {
+            return false;
+        }
 
         const resolvedConfig = this.resolveTemplateConfig(config);
         const targetByMode = this.getRearmTemplateByMode(resolvedConfig);
@@ -520,66 +548,123 @@ class WeaponModule {
     }
 
     stopGunFireTimer() {
+        const wasFiring = this.gunFireState.firing;
+        this.gunFireState.firing = false;
         if (this.gunFireState.timerId) {
             clearTimeout(this.gunFireState.timerId);
             this.gunFireState.timerId = null;
         }
         this.gunFireState.mode = null;
         this.gunFireState.roundsRemainingInBurst = 0;
+        this.gunFireState.triggerHeld = false;
+        this.gunFireState.accumulator = 0;
+        if (wasFiring) this.emit('gunstate', { firing: false });
     }
 
     processGunFireTick() {
-        if (this.gunFireState.roundsRemainingInBurst <= 0) {
-            this.stopGunFireTimer();
-            return;
-        }
+        const state = this.gunFireState;
+        const now = performance.now();
+        const elapsedSeconds = Math.min(0.2, Math.max(0, (now - state.lastTickAt) / 1000));
+        state.lastTickAt = now;
+        state.accumulator += elapsedSeconds * this.GUN_FIRE_RATE_RPS;
+        let roundsDue = Math.floor(state.accumulator);
+        state.accumulator -= roundsDue;
 
-        const mode = this.gunFireState.mode;
+        const mode = state.mode;
         const modeLoadout = this.getModeLoadout(mode);
-        const currentGun = modeLoadout.gun;
 
-        if (currentGun <= 0) {
+        // Emit one event per round so projectile and multiplayer modules can
+        // reproduce the real gun cadence instead of only seeing the burst.
+        while (roundsDue > 0 && (state.triggerHeld || state.roundsRemainingInBurst > 0)) {
+            if (!(modeLoadout.gun > 0)) break;
+            modeLoadout.gun -= 1;
+            if (!state.triggerHeld) state.roundsRemainingInBurst -= 1;
+            roundsDue -= 1;
+            this.emitFireEvent(mode, { side: 'center', station: 'gun' }, { load: 'GUN' });
+        }
+
+        if (!(modeLoadout.gun > 0)) {
             this.stopGunFireTimer();
             this.selectNextWeapon(mode, modeLoadout, 0);
             this.saveStateToStorage();
             return;
         }
 
-        modeLoadout.gun = currentGun - 1;
-        this.gunFireState.roundsRemainingInBurst -= 1;
-
-        if (modeLoadout.gun <= 0) {
-            this.stopGunFireTimer();
-            this.selectNextWeapon(mode, modeLoadout, 0);
-            this.saveStateToStorage();
-            return;
-        }
-
-        if (this.gunFireState.roundsRemainingInBurst <= 0) {
+        if (!state.triggerHeld && state.roundsRemainingInBurst <= 0) {
             this.stopGunFireTimer();
             this.saveStateToStorage();
             return;
         }
 
-        this.gunFireState.timerId = setTimeout(() => this.processGunFireTick(), this.GUN_FIRE_TICK_MS);
+        state.timerId = setTimeout(() => this.processGunFireTick(), this.GUN_FIRE_TICK_MS);
     }
 
-    ensureGunFireTimerRunning() {
-        if (this.gunFireState.timerId) return;
-        this.gunFireState.timerId = setTimeout(() => this.processGunFireTick(), this.GUN_FIRE_TICK_MS);
-    }
-
-    startGunFire(mode, modeLoadout) {
-        if (!modeLoadout || !Number.isFinite(modeLoadout.gun) || modeLoadout.gun <= 0) return false;
-        const wasIdle = !this.gunFireState.timerId;
-        this.gunFireState.mode = mode;
-        this.gunFireState.roundsRemainingInBurst += this.GUN_ROUNDS_PER_BURST;
-        if (wasIdle) this.processGunFireTick();
-        else this.ensureGunFireTimerRunning();
+    /** Starts the gun timer if idle; the first round is due immediately. */
+    beginGunFireTimer(mode) {
+        const state = this.gunFireState;
+        state.mode = mode;
+        if (state.firing) return;
+        state.lastTickAt = performance.now();
+        state.accumulator = 1;
+        this.emit('gunstate', { firing: true });
         this.triggerFireFlash();
+        state.firing = true;
+        this.processGunFireTick();
+    }
+
+    /** Fires a fixed-size burst (used by the MFD FIRE button). */
+    startGunFire(mode, modeLoadout) {
+        if (!modeLoadout || !Number.isFinite(modeLoadout.gun) || modeLoadout.gun <= 0) {
+            this.emit('dryfire', { weapon: 'GUN' });
+            return false;
+        }
+        this.gunFireState.roundsRemainingInBurst += this.GUN_ROUNDS_PER_BURST;
+        this.beginGunFireTimer(mode);
         return true;
     }
 
+    /** Fires continuously until `releaseTrigger()` (used by the keyboard trigger). */
+    startGunTrigger(mode, modeLoadout) {
+        if (!modeLoadout || !Number.isFinite(modeLoadout.gun) || modeLoadout.gun <= 0) {
+            this.emit('dryfire', { weapon: 'GUN' });
+            return false;
+        }
+        this.gunFireState.triggerHeld = true;
+        this.beginGunFireTimer(mode);
+        return true;
+    }
+
+    /**
+     * Pulls the trigger for the selected weapon: guns fire while held, missiles
+     * launch once. Returns false when nothing was fired (master off, no lock ...).
+     */
+    pressTrigger() {
+        const mode = OptionModule.getOption('WPN', 'MODE', 'NAV');
+        if (mode === 'NAV' || mode === 'JETTISON') {
+            this.emit('blocked', { reason: 'mode', mode });
+            return false;
+        }
+        if (OptionModule.getOption('WPN', 'MASTER', 'OFF') === 'OFF') {
+            this.emit('blocked', { reason: 'master' });
+            return false;
+        }
+        const modeLoadout = this.getModeLoadout(mode);
+        let selected = this.ensureSelectedWeapon(mode, modeLoadout);
+        if (!selected && this.selectNextWeapon(mode, modeLoadout, 0)) {
+            selected = this.ensureSelectedWeapon(mode, modeLoadout);
+        }
+        if (selected?.station === 'gun') return this.startGunTrigger(mode, modeLoadout);
+        return this.fireSelectedWeapon(mode, modeLoadout);
+    }
+
+    releaseTrigger() {
+        if (!this.gunFireState.triggerHeld) return;
+        this.gunFireState.triggerHeld = false;
+        if (this.gunFireState.roundsRemainingInBurst <= 0) {
+            this.stopGunFireTimer();
+            this.saveStateToStorage();
+        }
+    }
     triggerActionFlash(label = 'FIRE') {
         this.fireFlash.startTime = Date.now();
         this.fireFlash.label = label;
@@ -699,7 +784,9 @@ class WeaponModule {
     }
 
     hasRadarHardLock() {
-        return !!window.BasePlugin?.getActiveAddon?.()?.radar?.hardLockedUid;
+        const addon = window.BasePlugin?.getActiveAddon?.();
+        if (addon?.combat?.targets) return addon.combat.targets.hasLock();
+        return !!addon?.radar?.hardLockedUid;
     }
 
     selectNextWeapon(mode, modeLoadout, minimumQuantity = 0) {
@@ -711,6 +798,24 @@ class WeaponModule {
 
         for (let step = 1; step <= this.STATION_RENDER_ORDER.length; step++) {
             const index = (currentIndex + step) % this.STATION_RENDER_ORDER.length;
+            const candidate = this.STATION_RENDER_ORDER[index];
+            if (!this.canUseStationForMode(mode, modeLoadout, candidate.side, candidate.station, minimumQuantity)) continue;
+            this.selectedWeaponByMode[mode] = { side: candidate.side, station: candidate.station };
+            this.saveStateToStorage();
+            return true;
+        }
+        return false;
+    }
+
+    selectPreviousWeapon(mode, modeLoadout, minimumQuantity = 0) {
+        if (!modeLoadout) return false;
+        const current = this.ensureSelectedWeapon(mode, modeLoadout);
+        const currentIndex = current
+            ? this.STATION_RENDER_ORDER.findIndex((s) => s.side === current.side && s.station === current.station)
+            : 0;
+        for (let step = 1; step <= this.STATION_RENDER_ORDER.length; step += 1) {
+            const index = (currentIndex - step + this.STATION_RENDER_ORDER.length)
+                % this.STATION_RENDER_ORDER.length;
             const candidate = this.STATION_RENDER_ORDER[index];
             if (!this.canUseStationForMode(mode, modeLoadout, candidate.side, candidate.station, minimumQuantity)) continue;
             this.selectedWeaponByMode[mode] = { side: candidate.side, station: candidate.station };
@@ -750,9 +855,47 @@ class WeaponModule {
         return false;
     }
 
+    /** Subscribe to weapon lifecycle events. Returns an unsubscribe function. */
+    on(eventName, listener) {
+        if (typeof listener !== 'function') return () => {};
+        if (!this.listeners.has(eventName)) this.listeners.set(eventName, new Set());
+        this.listeners.get(eventName).add(listener);
+        return () => this.off(eventName, listener);
+    }
+
+    off(eventName, listener) {
+        this.listeners.get(eventName)?.delete(listener);
+    }
+
+    emit(eventName, payload) {
+        for (const listener of this.listeners.get(eventName) ?? []) {
+            try { listener(payload); } catch (error) { console.error(`[WeaponModule] ${eventName} listener failed`, error); }
+        }
+    }
+
+    emitFireEvent(mode, selected, station) {
+        const load = station?.load ?? (selected?.station === 'gun' ? 'GUN' : null);
+        const profile = load
+            ? WeaponModule.effectivenessByType.find((item) => item.name === load)
+            : null;
+        const projectile = load === 'GUN'
+            ? { ...WeaponModule.gunMetadata }
+            : { ...WeaponModule.defaultMissileMetadata, ...(WeaponModule.projectileMetadataByType[load] ?? {}) };
+        this.emit('fire', {
+            mode,
+            selected: selected ? { ...selected } : null,
+            weapon: load,
+            metadata: {
+                engagement_window: profile ? { ...profile.engagement_window } : null,
+                effective_range: profile ? { ...profile.effective_range } : null,
+                projectile
+            }
+        });
+    }
     fireSelectedWeapon(mode, modeLoadout) {
         if (!modeLoadout) return false;
         if (mode === 'NAV' || mode === 'JETTISON') return false;
+        if (OptionModule.getOption('WPN', 'MASTER', 'OFF') === 'OFF') return false;
 
         let selected = this.ensureSelectedWeapon(mode, modeLoadout);
         if (!selected) {
@@ -762,12 +905,16 @@ class WeaponModule {
         }
 
         if (selected.station === 'gun') return this.startGunFire(mode, modeLoadout);
-        if (!this.hasRadarHardLock()) return false;
+        if (!this.hasRadarHardLock()) {
+            this.emit('blocked', { reason: 'lock' });
+            return false;
+        }
 
         const station = modeLoadout?.[selected.side]?.[selected.station];
         if (!station || !Number.isFinite(station.quantity)) return false;
 
         if (station.quantity <= 0) {
+            this.emit('dryfire', { weapon: station.load });
             if (!this.selectSameWeaponHardpoint(mode, modeLoadout, selected)) {
                 this.selectNextWeapon(mode, modeLoadout, 0);
             }
@@ -776,6 +923,7 @@ class WeaponModule {
 
         station.quantity -= 1;
         this.triggerFireFlash();
+        this.emitFireEvent(mode, selected, station);
         this.saveStateToStorage();
 
         if (station.quantity <= 0) {
@@ -803,6 +951,7 @@ class WeaponModule {
         if (!station || !Number.isFinite(station.quantity)) return false;
 
         if (station.quantity <= 0) {
+            this.emit('dryfire', { weapon: station.load });
             if (!this.selectSameWeaponHardpoint(mode, modeLoadout, selected)) {
                 this.selectNextWeapon(mode, modeLoadout, 0);
             }

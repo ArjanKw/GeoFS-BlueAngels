@@ -102,7 +102,16 @@
       window.F16Addon.flight.registerMfdPages(window.F16Addon.mfd);
       window.F16Addon.targetingPod.registerMfdPages(window.F16Addon.mfd);
 
-      this.setManagedModules([window.F16Addon.controls]);
+      this.setManagedModules([
+        window.F16Addon.controls,
+        ...this.initializeOptionalModules(window.F16Addon, config.optionalModules ?? {
+          keybind: true,
+          weaponHud: { enabled: true },
+          projectile: true,
+          aaCombat: { enabled: true },
+          multiplayer: { enabled: true }
+        })
+      ]);
     }
 
     isAircraftActive() {
