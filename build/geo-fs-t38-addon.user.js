@@ -15152,7 +15152,7 @@ class MfdModule {
     };
 
     constructor(config = {}) {
-      super({ id: 't38', version: config.version ?? '2.0.0' });
+      super({ id: 't38', version: config.version ?? '3.0.0' });
       OptionModule.initializeStorageKey(this.id, 'T38AddonOptions');
 
       window.T38Addon = {

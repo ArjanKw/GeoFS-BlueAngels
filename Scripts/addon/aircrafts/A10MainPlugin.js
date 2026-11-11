@@ -41,7 +41,7 @@
     };
 
     constructor(config = {}) {
-      super({ id: 'a10', version: config.version ?? '2.0.0' });
+      super({ id: 'a10', version: config.version ?? '3.0.0' });
       OptionModule.initializeStorageKey(this.id, 'A10AddonOptions');
 
       window.A10Addon = {

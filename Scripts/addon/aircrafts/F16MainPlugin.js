@@ -26,7 +26,7 @@
     };
 
     constructor(config = {}) {
-      super({ id: 'f16', version: config.version ?? '2.0.0' });
+      super({ id: 'f16', version: config.version ?? '3.0.0' });
       OptionModule.initializeStorageKey(this.id, 'F16AddonOptions');
 
       window.F16Addon = {

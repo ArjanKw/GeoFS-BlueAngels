@@ -15159,7 +15159,7 @@ class MfdModule {
     };
 
     constructor(config = {}) {
-      super({ id: 'kc135', version: config.version ?? '2.0.0' });
+      super({ id: 'kc135', version: config.version ?? '3.0.0' });
       OptionModule.initializeStorageKey(this.id, 'KC135AddonOptions');
 
       window.KC135Addon = {

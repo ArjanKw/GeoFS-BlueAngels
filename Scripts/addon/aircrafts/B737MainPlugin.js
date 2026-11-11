@@ -40,7 +40,7 @@
     };
 
     constructor(config = {}) {
-      super({ id: 'b737', version: config.version ?? '2.0.0' });
+      super({ id: 'b737', version: config.version ?? '3.0.0' });
       OptionModule.initializeStorageKey(this.id, 'B737AddonOptions');
 
       window.B737Addon = {

@@ -33,7 +33,7 @@
     };
 
     constructor(config = {}) {
-      super({ id: 'F15', version: config.version ?? '2.0.0' });
+      super({ id: 'F15', version: config.version ?? '3.0.0' });
       OptionModule.initializeStorageKey(this.id, 'F15Options');
       this.addonGlobalKey = `${this.id}Addon`;
 

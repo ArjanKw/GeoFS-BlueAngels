@@ -33,7 +33,7 @@
     };
 
     constructor(config = {}) {
-      super({ id: 'su35', version: config.version ?? '2.0.0' });
+      super({ id: 'su35', version: config.version ?? '3.0.0' });
       OptionModule.initializeStorageKey(this.id, 'SU35AddonOptions');
 
       window.SU35Addon = {
