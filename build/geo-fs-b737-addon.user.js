@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GeoFS Boeing 737 Addon
 // @namespace    https://github.com/ArjanKw/GeoFS-BlueAngels/
-// @version      2.1.0
+// @version      3.0.0
 // @description  Improves the cockpit with a new HUD and custom MFDs, adjustable seat height and more.
 // @author       Natrium
 // @match        https://geo-fs.com/geofs.php*
@@ -8784,8 +8784,9 @@ class RadarModule {
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'alphabetic';
                     ctx.font = `${Math.max(8, Math.round(h * 0.028))}px monospace`;
-                    ctx.fillText('Created by NatriumFS', w / 2, h - Math.round(h * 0.07));
-                    ctx.fillText('Credits to yicha.25 (壹茶) for targeting pod, combat module, missiles and ADI view.', w / 2, h - Math.round(h * 0.03), w * 0.96);
+                    ctx.fillText('Created by NatriumFS', w / 2, h - Math.round(h * 0.32));
+                    ctx.fillText('Credits to yicha.25 (壹茶) for targeting pod, combat module,', w / 2, h - Math.round(h * 0.24), w * 0.96);
+                    ctx.fillText('missiles and ADI view. Thank you for your contribution.', w / 2, h - Math.round(h * 0.20), w * 0.96);
                     ctx.restore();        }
       });
       return true;
@@ -15343,10 +15344,7 @@ class MfdModule {
           set: OptionModule.setOption,
           getValue: OptionModule.getOptionValue
         },
-        weapons: new WeaponModule({
-          ...window.WeaponModuleDefaults?.fighter,
-          storageKey: 'B737AddonWpnState'
-        }),
+        weapons: null,
         checklists: ChecklistModule.loadDefaults('fighter') ?? new ChecklistModule(),
         helper: new HelperModule(),
         map: null,

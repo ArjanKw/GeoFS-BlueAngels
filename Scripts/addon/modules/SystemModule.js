@@ -27,8 +27,9 @@
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'alphabetic';
                     ctx.font = `${Math.max(8, Math.round(h * 0.028))}px monospace`;
-                    ctx.fillText('Created by NatriumFS', w / 2, h - Math.round(h * 0.07));
-                    ctx.fillText('Credits to yicha.25 (壹茶) for targeting pod, combat module, missiles and ADI view.', w / 2, h - Math.round(h * 0.03), w * 0.96);
+                    ctx.fillText('Created by NatriumFS', w / 2, h - Math.round(h * 0.32));
+                    ctx.fillText('Credits to yicha.25 (壹茶) for targeting pod, combat module,', w / 2, h - Math.round(h * 0.24), w * 0.96);
+                    ctx.fillText('missiles and ADI view. Thank you for your contribution.', w / 2, h - Math.round(h * 0.20), w * 0.96);
                     ctx.restore();        }
       });
       return true;
